@@ -21,6 +21,12 @@ dist/
 # Git worktrees
 .trees/
 
+# AI agent tooling — runtime artifacts, not source (like node_modules)
+# skills.lock IS tracked; the installed files are not
+.agents/
+.claude/skills/
+skills/
+
 # OS
 .DS_Store
 Thumbs.db
