@@ -34,6 +34,28 @@ export default tseslint.config(
     },
   },
   {
+    // Relax rules for test and config infrastructure files
+    files: [
+      "vitest.config.ts",
+      "vitest.setup.tsx",
+      "playwright.config.ts",
+      "__tests__/**/*.{ts,tsx}",
+      "e2e/**/*.{ts,tsx}",
+      "**/__tests__/**/*.{ts,tsx}",
+      "**/*.test.{ts,tsx}",
+      "**/*.spec.{ts,tsx}",
+    ],
+    rules: {
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-inferrable-types": "off",
+      "@typescript-eslint/dot-notation": "off",
+      "@typescript-eslint/explicit-module-boundary-types": "off",
+      "no-console": "off",
+    },
+  },
+  {
     // Ignore build outputs and generated files
     ignores: [
       "**/node_modules/**",
@@ -44,6 +66,7 @@ export default tseslint.config(
       "**/playwright-report/**",
       "**/*.config.js",
       "**/*.config.mjs",
+      "load-tests/**",
     ],
   }
 );

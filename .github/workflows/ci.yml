@@ -1,0 +1,218 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs for the same branch/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "9"
+
+jobs:
+  # ──────────────────────────────────────────────────────────────
+  # Job 1: typecheck
+  # ──────────────────────────────────────────────────────────────
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript check
+        run: pnpm typecheck
+
+  # ──────────────────────────────────────────────────────────────
+  # Job 2: lint
+  # ──────────────────────────────────────────────────────────────
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: ESLint + Prettier check
+        run: pnpm lint
+
+  # ──────────────────────────────────────────────────────────────
+  # Job 3: test
+  # ──────────────────────────────────────────────────────────────
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    env:
+      TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+      TEST_CLERK_SECRET_KEY: ${{ secrets.TEST_CLERK_SECRET_KEY }}
+      TEST_CLERK_PUBLISHABLE_KEY: ${{ secrets.TEST_CLERK_PUBLISHABLE_KEY }}
+      TEST_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+      TEST_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          directory: ./coverage
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  # ──────────────────────────────────────────────────────────────
+  # Job 4: build
+  # ──────────────────────────────────────────────────────────────
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    needs: [typecheck, lint, test]
+    env:
+      # Inject NEXT_PUBLIC_ vars needed for Next.js build
+      NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL || 'http://localhost:3000' }}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.TEST_CLERK_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: |
+            apps/web/.next/cache
+            apps/realtime/dist
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('apps/**/*.ts', 'apps/**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-
+
+      - name: Build all apps
+        run: pnpm build
+
+  # ──────────────────────────────────────────────────────────────
+  # Job 5: skills-security-scan
+  # ──────────────────────────────────────────────────────────────
+  skills-security-scan:
+    name: skills-security-scan
+    runs-on: ubuntu-latest
+    # Only run if skills.lock exists
+    if: hashFiles('skills.lock') != ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Scan skills for vulnerabilities
+        run: npx cisco-ai-skill-scanner --manifest skills.lock --fail-on-high
+
+  # ──────────────────────────────────────────────────────────────
+  # Job 6: ai-review (PR only)
+  # ──────────────────────────────────────────────────────────────
+  ai-review:
+    name: ai-review
+    runs-on: ubuntu-latest
+    # Only on pull requests, after other checks pass
+    if: github.event_name == 'pull_request'
+    needs: [typecheck, lint, test]
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          custom_instructions: |
+            Review this PR for the CollabBoard real-time whiteboard project.
+            Focus on these project-specific concerns:
+
+            BLOCKING issues (must fix before merge):
+            - Any `any` type in TypeScript — suggest proper type
+            - tRPC procedures that accept user input without a Zod schema
+            - Mutations using publicProcedure instead of protectedProcedure
+            - Canvas rendering code that runs server-side (missing 'use client' or window check)
+            - Durable Object WebSocket handlers that don't validate payloads with Zod
+            - NEXT_PUBLIC_ variables containing secrets or service role keys
+            - Supabase service role key in client-accessible code
+            - WebSocket payloads not checked for 64KB size limit
+
+            RECOMMEND (should fix):
+            - Missing Arrange/Act/Assert structure in tests
+            - Canvas rendering without viewport culling
+            - Missing error handling for network failures in WebSocket handlers
+            - Conflict resolution not using LWW + version number
+
+            NOTE (optional improvement):
+            - Performance improvements within budget
+            - Refactoring for clarity
+
+            Format: List BLOCKING, then RECOMMEND, then NOTE.
+            End with APPROVE or REQUEST CHANGES.
