@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useUser, UserButton } from '@clerk/nextjs';
-import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
-import type { Board } from '@/types/board';
+import { useUser, UserButton } from "@clerk/nextjs";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import type { Board } from "@/types/board";
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export default function DashboardPage() {
@@ -14,13 +14,15 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   const loadBoards = useCallback(async () => {
+    if (!user) return;
     const { data } = await supabase
-      .from('boards')
-      .select('*')
-      .order('updated_at', { ascending: false });
-    setBoards((data as Board[]) ?? []);
+      .from("boards")
+      .select("*")
+      .eq("created_by", user.id)
+      .order("updated_at", { ascending: false });
+    setBoards(data ? (data as Board[]) : []);
     setLoading(false);
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -29,13 +31,13 @@ export default function DashboardPage() {
 
   const createBoard = useCallback(async () => {
     if (!user) return;
-    const { data, error } = await supabase
-      .from('boards')
-      .insert({ name: 'Untitled Board', created_by: user.id })
+    const result = await supabase
+      .from("boards")
+      .insert({ name: "Untitled Board", created_by: user.id })
       .select()
       .single();
-    if (data && !error) {
-      router.push(`/board/${(data as Board).id}`);
+    if (result.data && !result.error) {
+      router.push(`/board/${(result.data as Board).id}`);
     }
   }, [user, router]);
 
@@ -70,7 +72,7 @@ export default function DashboardPage() {
             {boards.map((board) => (
               <button
                 key={board.id}
-                onClick={() => router.push(`/board/${board.id}`)}
+                onClick={() => { router.push(`/board/${board.id}`); }}
                 className="bg-white border rounded-lg p-4 text-left hover:shadow-md transition"
               >
                 <h3 className="font-medium truncate">{board.name}</h3>
