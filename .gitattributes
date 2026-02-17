@@ -1,0 +1,35 @@
+# Auto-detect text files and normalize to LF on checkout
+* text=auto eol=lf
+
+# Force LF for scripts (prevent CRLF breaking shebangs in WSL2)
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Force LF for all source files
+*.ts text eol=lf
+*.tsx text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+
+# Force LF for config files
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.mdx text eol=lf
+*.css text eol=lf
+
+# Binary files — do not mess with line endings
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary

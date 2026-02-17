@@ -1,0 +1,60 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "inputs": ["**/*.ts", "**/*.tsx", "tsconfig*.json"],
+      "outputs": ["*.tsbuildinfo"]
+    },
+    "lint": {
+      "dependsOn": [],
+      "inputs": ["**/*.ts", "**/*.tsx", "**/*.mjs", "eslint.config.mjs", ".prettierrc"],
+      "outputs": []
+    },
+    "lint:fix": {
+      "dependsOn": [],
+      "inputs": ["**/*.ts", "**/*.tsx", "**/*.mjs"],
+      "outputs": ["**/*.ts", "**/*.tsx"]
+    },
+    "test": {
+      "dependsOn": [],
+      "inputs": ["**/*.ts", "**/*.tsx", "vitest.config.ts", "vitest.setup.ts"],
+      "outputs": ["coverage/**"]
+    },
+    "test:watch": {
+      "dependsOn": [],
+      "persistent": true,
+      "inputs": ["**/*.ts", "**/*.tsx"]
+    },
+    "test:e2e": {
+      "dependsOn": ["build"],
+      "inputs": ["e2e/**/*.ts", "playwright.config.ts"],
+      "outputs": ["playwright-report/**"]
+    },
+    "test:coverage": {
+      "dependsOn": [],
+      "inputs": ["**/*.ts", "**/*.tsx"],
+      "outputs": ["coverage/**"]
+    },
+    "test:load": {
+      "dependsOn": [],
+      "inputs": ["load-tests/**/*.js"],
+      "outputs": []
+    },
+    "dev": {
+      "dependsOn": [],
+      "persistent": true,
+      "inputs": ["$TURBO_DEFAULT$", ".env*"]
+    },
+    "clean": {
+      "dependsOn": [],
+      "cache": false
+    }
+  }
+}
