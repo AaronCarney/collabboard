@@ -3,6 +3,9 @@
 # Run lint-staged (format + lint changed files)
 pnpm lint-staged
 
+# Run tests — TDD mandate: never commit red
+pnpm test
+
 # Secret scanner — block commits containing common secret patterns
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
 
@@ -16,7 +19,7 @@ if [ -n "$STAGED_FILES" ]; then
     # Skip the scanner script itself to avoid self-detection of pattern strings
     case "$FILE" in .husky/*) continue ;; esac
     if [ -f "$FILE" ]; then
-      if grep -qEr "$SECRET_PATTERNS" "$FILE" 2>/dev/null; then
+      if grep -Er "$SECRET_PATTERNS" "$FILE" 2>/dev/null | grep -qv 'noqa: secret'; then
         echo "BLOCKED: Possible secret detected in $FILE"
         echo "Remove the secret and use an environment variable instead."
         echo "If this is a false positive, add an inline comment: # noqa: secret"

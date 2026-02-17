@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { SignUp } from '@clerk/nextjs';
-import type { JSX } from 'react';
+import { SignUp } from "@clerk/nextjs";
+import type { JSX } from "react";
 
 export default function SignUpPage(): JSX.Element {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50">
-      <SignUp fallbackRedirectUrl="/dashboard" />
+      <SignUp fallbackRedirectUrl="/dashboard" signInUrl="/sign-in" />
     </div>
   );
 }

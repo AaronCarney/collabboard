@@ -52,7 +52,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./apps/web"),
+      "@": path.resolve(__dirname, "./apps/web/src"),
       "@collabboard/shared": path.resolve(__dirname, "./packages/shared/src"),
       "@collabboard/ui": path.resolve(__dirname, "./packages/ui/src"),
       "@collabboard/db": path.resolve(__dirname, "./packages/db/src"),

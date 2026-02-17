@@ -1,8 +1,9 @@
-'use client';
+"use client";
 
-import { useRef, useEffect, useCallback, useState } from 'react';
-import type { BoardObject, CursorPosition } from '@/types/board';
-import type { Camera } from '@/lib/board-store';
+import { useRef, useEffect, useCallback, useState } from "react";
+import type { BoardObject, CursorPosition } from "@/types/board";
+import type { Camera } from "@/lib/board-store";
+import { screenToWorld as screenToWorldFn, hitTest as hitTestFn } from "@/lib/board-logic";
 
 interface BoardCanvasProps {
   objects: BoardObject[];
@@ -19,6 +20,7 @@ interface BoardCanvasProps {
   onCursorMove: (worldX: number, worldY: number) => void;
 }
 
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function BoardCanvas({
   objects,
   camera,
@@ -43,35 +45,13 @@ export function BoardCanvas({
 
   // Screen to world coords
   const screenToWorld = useCallback(
-    (sx: number, sy: number) => ({
-      x: (sx - camera.x) / camera.zoom,
-      y: (sy - camera.y) / camera.zoom,
-    }),
+    (sx: number, sy: number) => screenToWorldFn(sx, sy, camera),
     [camera]
   );
 
   // Hit test
   const hitTest = useCallback(
-    (wx: number, wy: number): BoardObject | null => {
-      // Reverse order so topmost (last rendered) is picked first
-      for (let i = objects.length - 1; i >= 0; i--) {
-        const obj = objects[i];
-        if (obj.type === 'circle') {
-          const cx = obj.x + obj.width / 2;
-          const cy = obj.y + obj.height / 2;
-          const rx = obj.width / 2;
-          const ry = obj.height / 2;
-          if (((wx - cx) ** 2) / (rx ** 2) + ((wy - cy) ** 2) / (ry ** 2) <= 1) {
-            return obj;
-          }
-        } else {
-          if (wx >= obj.x && wx <= obj.x + obj.width && wy >= obj.y && wy <= obj.y + obj.height) {
-            return obj;
-          }
-        }
-      }
-      return null;
-    },
+    (wx: number, wy: number): BoardObject | null => hitTestFn(wx, wy, objects),
     [objects]
   );
 
@@ -79,7 +59,7 @@ export function BoardCanvas({
   const render = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 1;
@@ -90,7 +70,7 @@ export function BoardCanvas({
     ctx.scale(dpr, dpr);
 
     // Clear
-    ctx.fillStyle = '#f8f9fa';
+    ctx.fillStyle = "#f8f9fa";
     ctx.fillRect(0, 0, w, h);
 
     // Apply camera
@@ -121,7 +101,9 @@ export function BoardCanvas({
       animFrameRef.current = requestAnimationFrame(loop);
     };
     animFrameRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animFrameRef.current);
+    return () => {
+      cancelAnimationFrame(animFrameRef.current);
+    };
   }, [render]);
 
   // Resize
@@ -129,12 +111,14 @@ export function BoardCanvas({
     const handleResize = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      canvas.style.width = '100%';
-      canvas.style.height = '100%';
+      canvas.style.width = "100%";
+      canvas.style.height = "100%";
     };
     handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
   }, []);
 
   // Mouse handlers
@@ -272,7 +256,9 @@ export function BoardCanvas({
         }}
         onDoubleClick={handleDoubleClick}
         onWheel={handleWheel}
-        onContextMenu={(e) => e.preventDefault()}
+        onContextMenu={(e) => {
+          e.preventDefault();
+        }}
       />
     </div>
   );
@@ -282,7 +268,7 @@ export function BoardCanvas({
 
 function drawGrid(ctx: CanvasRenderingContext2D, camera: Camera, w: number, h: number) {
   const gridSize = 50;
-  ctx.strokeStyle = '#e2e8f0';
+  ctx.strokeStyle = "#e2e8f0";
   ctx.lineWidth = 1 / camera.zoom;
 
   const startX = Math.floor(-camera.x / camera.zoom / gridSize) * gridSize;
@@ -305,7 +291,7 @@ function drawGrid(ctx: CanvasRenderingContext2D, camera: Camera, w: number, h: n
 function drawObject(ctx: CanvasRenderingContext2D, obj: BoardObject, selected: boolean) {
   ctx.save();
 
-  if (obj.type === 'circle') {
+  if (obj.type === "circle") {
     ctx.beginPath();
     ctx.ellipse(
       obj.x + obj.width / 2,
@@ -319,13 +305,13 @@ function drawObject(ctx: CanvasRenderingContext2D, obj: BoardObject, selected: b
     ctx.fillStyle = obj.color;
     ctx.fill();
     if (selected) {
-      ctx.strokeStyle = '#3b82f6';
+      ctx.strokeStyle = "#3b82f6";
       ctx.lineWidth = 3;
       ctx.stroke();
     }
-  } else if (obj.type === 'sticky_note') {
+  } else if (obj.type === "sticky_note") {
     // Shadow
-    ctx.shadowColor = 'rgba(0,0,0,0.1)';
+    ctx.shadowColor = "rgba(0,0,0,0.1)";
     ctx.shadowBlur = 8;
     ctx.shadowOffsetY = 2;
 
@@ -333,10 +319,10 @@ function drawObject(ctx: CanvasRenderingContext2D, obj: BoardObject, selected: b
     roundRect(ctx, obj.x, obj.y, obj.width, obj.height, 8);
     ctx.fill();
 
-    ctx.shadowColor = 'transparent';
+    ctx.shadowColor = "transparent";
 
     if (selected) {
-      ctx.strokeStyle = '#3b82f6';
+      ctx.strokeStyle = "#3b82f6";
       ctx.lineWidth = 3;
       roundRect(ctx, obj.x, obj.y, obj.width, obj.height, 8);
       ctx.stroke();
@@ -344,28 +330,28 @@ function drawObject(ctx: CanvasRenderingContext2D, obj: BoardObject, selected: b
 
     // Text
     if (obj.content) {
-      ctx.fillStyle = '#1a1a1a';
-      ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
+      ctx.fillStyle = "#1a1a1a";
+      ctx.font = "14px -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
       wrapText(ctx, obj.content, obj.x + 12, obj.y + 12, obj.width - 24, 18);
     }
-  } else if (obj.type === 'rectangle') {
+  } else if (obj.type === "rectangle") {
     ctx.fillStyle = obj.color;
     ctx.fillRect(obj.x, obj.y, obj.width, obj.height);
     if (selected) {
-      ctx.strokeStyle = '#3b82f6';
+      ctx.strokeStyle = "#3b82f6";
       ctx.lineWidth = 3;
       ctx.strokeRect(obj.x, obj.y, obj.width, obj.height);
     }
   } else {
-    ctx.fillStyle = '#1a1a1a';
-    ctx.font = '18px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText(obj.content || 'Text', obj.x, obj.y);
+    ctx.fillStyle = "#1a1a1a";
+    ctx.font = "18px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(obj.content || "Text", obj.x, obj.y);
     if (selected) {
-      ctx.strokeStyle = '#3b82f6';
+      ctx.strokeStyle = "#3b82f6";
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 4]);
       ctx.strokeRect(obj.x - 4, obj.y - 4, obj.width + 8, obj.height + 8);
@@ -389,19 +375,19 @@ function drawCursor(ctx: CanvasRenderingContext2D, cursor: CursorPosition) {
   ctx.closePath();
   ctx.fillStyle = cursor.color;
   ctx.fill();
-  ctx.strokeStyle = '#fff';
+  ctx.strokeStyle = "#fff";
   ctx.lineWidth = 1;
   ctx.stroke();
 
   // Name label
-  ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.font = "11px -apple-system, BlinkMacSystemFont, sans-serif";
   const textWidth = ctx.measureText(cursor.userName).width;
   ctx.fillStyle = cursor.color;
   roundRect(ctx, 10, 14, textWidth + 8, 18, 4);
   ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
+  ctx.fillStyle = "#fff";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
   ctx.fillText(cursor.userName, 14, 17);
 
   ctx.restore();
@@ -432,16 +418,16 @@ function wrapText(
   maxWidth: number,
   lineHeight: number
 ) {
-  const words = text.split(' ');
-  let line = '';
+  const words = text.split(" ");
+  let line = "";
   let currentY = y;
 
   for (const word of words) {
-    const testLine = line + word + ' ';
+    const testLine = line + word + " ";
     const metrics = ctx.measureText(testLine);
     if (metrics.width > maxWidth && line) {
       ctx.fillText(line.trim(), x, currentY);
-      line = word + ' ';
+      line = word + " ";
       currentY += lineHeight;
     } else {
       line = testLine;

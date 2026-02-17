@@ -1,10 +1,11 @@
-'use client';
+"use client";
 
-import { useState, useCallback, useRef } from 'react';
-import type { BoardObject, ObjectType, CursorPosition, PresenceUser } from '@/types/board';
-import { OBJECT_DEFAULTS, USER_COLORS } from '@/types/board';
-import { supabase } from '@/lib/supabase';
-import { v4 as uuidv4 } from 'uuid';
+import { useState, useCallback, useRef } from "react";
+import type { BoardObject, ObjectType, CursorPosition, PresenceUser } from "@/types/board";
+import { OBJECT_DEFAULTS, USER_COLORS } from "@/types/board";
+import { supabase } from "@/lib/supabase";
+import { v4 as uuidv4 } from "uuid";
+import { hashCode, shouldAcceptUpdate } from "@/lib/board-logic";
 
 export interface Camera {
   x: number;
@@ -47,7 +48,7 @@ export function useBoardStore(boardId: string, userId: string, userName: string)
   const [objects, setObjects] = useState<BoardObject[]>([]);
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [activeTool, setActiveTool] = useState<ObjectType | 'select'>('select');
+  const [activeTool, setActiveTool] = useState<ObjectType | "select">("select");
   const [cursors, setCursors] = useState<Map<string, CursorPosition>>(new Map());
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -56,10 +57,7 @@ export function useBoardStore(boardId: string, userId: string, userName: string)
   const userColor = USER_COLORS[Math.abs(hashCode(userId)) % USER_COLORS.length];
 
   const loadObjects = useCallback(async () => {
-    const { data } = await supabase
-      .from('board_objects')
-      .select('*')
-      .eq('board_id', boardId);
+    const { data } = await supabase.from("board_objects").select("*").eq("board_id", boardId);
     if (data) setObjects(data as BoardObject[]);
   }, [boardId]);
 
@@ -68,7 +66,7 @@ export function useBoardStore(boardId: string, userId: string, userName: string)
       config: { presence: { key: userId } },
     });
 
-    channel.on('presence', { event: 'sync' }, () => {
+    channel.on("presence", { event: "sync" }, () => {
       const state = channel.presenceState<{ userName: string; color: string; onlineAt: string }>();
       const users: PresenceUser[] = [];
       for (const [uid, presences] of Object.entries(state)) {
@@ -83,7 +81,7 @@ export function useBoardStore(boardId: string, userId: string, userName: string)
       setPresenceUsers(users);
     });
 
-    channel.on('broadcast', { event: 'cursor' }, ({ payload }) => {
+    channel.on("broadcast", { event: "cursor" }, ({ payload }) => {
       const p = payload as CursorPayload;
       if (p.userId !== userId) {
         setCursors((prev) => {
@@ -94,13 +92,13 @@ export function useBoardStore(boardId: string, userId: string, userName: string)
       }
     });
 
-    channel.on('broadcast', { event: 'object:upsert' }, ({ payload }) => {
+    channel.on("broadcast", { event: "object:upsert" }, ({ payload }) => {
       const p = payload as BroadcastPayload;
       if (p._source !== userId) {
         setObjects((prev) => {
           const idx = prev.findIndex((o) => o.id === p.id);
           if (idx >= 0) {
-            if (p.version >= prev[idx].version) {
+            if (shouldAcceptUpdate(p.version, prev[idx].version)) {
               const next = [...prev];
               next[idx] = p as unknown as BoardObject;
               return next;
@@ -112,13 +110,13 @@ export function useBoardStore(boardId: string, userId: string, userName: string)
       }
     });
 
-    channel.on('broadcast', { event: 'object:delete' }, ({ payload }) => {
+    channel.on("broadcast", { event: "object:delete" }, ({ payload }) => {
       const p = payload as DeletePayload;
       setObjects((prev) => prev.filter((o) => o.id !== p.id));
     });
 
-    void channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
+    void channel.subscribe((status: string) => {
+      if (status === "SUBSCRIBED") {
         void channel.track({
           userName,
           color: userColor,
@@ -136,8 +134,8 @@ export function useBoardStore(boardId: string, userId: string, userName: string)
   const broadcastCursor = useCallback(
     (x: number, y: number) => {
       void channelRef.current?.send({
-        type: 'broadcast',
-        event: 'cursor',
+        type: "broadcast",
+        event: "cursor",
         payload: { userId, userName, x, y, color: userColor },
       });
     },
@@ -156,8 +154,8 @@ export function useBoardStore(boardId: string, userId: string, userName: string)
         width: defaults.width ?? 200,
         height: defaults.height ?? 200,
         rotation: 0,
-        content: defaults.content ?? '',
-        color: defaults.color ?? '#FFEB3B',
+        content: defaults.content ?? "",
+        color: defaults.color ?? "#FFEB3B",
         version: 1,
         created_by: userId,
         created_at: new Date().toISOString(),
@@ -167,12 +165,12 @@ export function useBoardStore(boardId: string, userId: string, userName: string)
       setObjects((prev) => [...prev, obj]);
 
       void channelRef.current?.send({
-        type: 'broadcast',
-        event: 'object:upsert',
+        type: "broadcast",
+        event: "object:upsert",
         payload: { ...obj, _source: userId },
       });
 
-      await supabase.from('board_objects').insert(obj);
+      await supabase.from("board_objects").insert(obj);
 
       return obj;
     },
@@ -192,19 +190,19 @@ export function useBoardStore(boardId: string, userId: string, userName: string)
           };
 
           void channelRef.current?.send({
-            type: 'broadcast',
-            event: 'object:upsert',
+            type: "broadcast",
+            event: "object:upsert",
             payload: { ...updated, _source: userId },
           });
 
           void supabase
-            .from('board_objects')
+            .from("board_objects")
             .update({
               ...changes,
               version: updated.version,
               updated_at: updated.updated_at,
             })
-            .eq('id', id);
+            .eq("id", id);
 
           return updated;
         })
@@ -213,20 +211,17 @@ export function useBoardStore(boardId: string, userId: string, userName: string)
     [userId]
   );
 
-  const deleteObject = useCallback(
-    async (id: string) => {
-      setObjects((prev) => prev.filter((o) => o.id !== id));
+  const deleteObject = useCallback(async (id: string) => {
+    setObjects((prev) => prev.filter((o) => o.id !== id));
 
-      void channelRef.current?.send({
-        type: 'broadcast',
-        event: 'object:delete',
-        payload: { id },
-      });
+    void channelRef.current?.send({
+      type: "broadcast",
+      event: "object:delete",
+      payload: { id },
+    });
 
-      await supabase.from('board_objects').delete().eq('id', id);
-    },
-    []
-  );
+    await supabase.from("board_objects").delete().eq("id", id);
+  }, []);
 
   return {
     objects,
@@ -248,14 +243,4 @@ export function useBoardStore(boardId: string, userId: string, userName: string)
     deleteObject,
     userColor,
   };
-}
-
-function hashCode(s: string): number {
-  let hash = 0;
-  for (let i = 0; i < s.length; i++) {
-    const char = s.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash |= 0;
-  }
-  return hash;
 }
