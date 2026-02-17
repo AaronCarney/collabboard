@@ -68,6 +68,27 @@ Sequence for every feature: `/research` → `/plan` → @test-writer (failing te
 - Verify webhook signatures (Clerk, Stripe) before processing
 - Auth on all routes: `protectedProcedure` for mutations, `publicProcedure` for public reads
 
+## MCP Rotation
+
+Active 2-3 servers max. Rotate by task:
+
+- Coding: github + context7
+- DB: github + supabase
+- CF/DO: github + cloudflare
+- Research: context7 only
+
+Run `/cost` every 30 min — if >50k tokens, /compact or /clear.
+
+To temporarily disable a server: comment it out in `.mcp.json` and restart Claude Code.
+
+## Git Worktrees
+
+- One Claude Code session per worktree — never share a session
+- Never let two sessions edit the same file simultaneously
+- Each worktree gets its own `.env.local` (copy from root)
+- Reconcile architectural conflicts in a planning session before resuming
+- Worktrees directory: `.trees/` (gitignored)
+
 ## Maintenance
 
 Update this file at sprint end and after any architectural decision. Stale context costs more than no context.
