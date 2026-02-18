@@ -14,10 +14,7 @@ export default function DashboardPage() {
   const [boards, setBoards] = useState<Board[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const supabase = useMemo(
-    () => createClerkSupabaseClient(() => getToken({ template: "supabase" })),
-    [getToken]
-  );
+  const supabase = useMemo(() => createClerkSupabaseClient(() => getToken()), [getToken]);
 
   const loadBoards = useCallback(async () => {
     if (!user) return;

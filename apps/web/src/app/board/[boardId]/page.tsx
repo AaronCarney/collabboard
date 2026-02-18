@@ -19,10 +19,7 @@ export default function BoardPage() {
   const boardId = params.boardId as string;
   const initRef = useRef(false);
 
-  const supabase = useMemo(
-    () => createClerkSupabaseClient(() => getToken({ template: "supabase" })),
-    [getToken]
-  );
+  const supabase = useMemo(() => createClerkSupabaseClient(() => getToken()), [getToken]);
 
   const store = useBoardStore(
     boardId,
@@ -37,7 +34,7 @@ export default function BoardPage() {
     void store.loadObjects();
     const cleanup = store.subscribe();
     return cleanup;
-  }, [user]);  
+  }, [user]);
 
   const lastCursorRef = useRef(0);
   const handleCursorMove = useCallback(
@@ -135,7 +132,9 @@ export default function BoardPage() {
       if (e.key === "t" || e.key === "5") store.setActiveTool("text");
     };
     window.addEventListener("keydown", handleKey);
-    return () => { window.removeEventListener("keydown", handleKey); };
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+    };
   }, [store.editingId, handleDelete, store.setSelectedId, store.setActiveTool]);
 
   const editingObject = store.editingId
@@ -154,7 +153,9 @@ export default function BoardPage() {
     <div className="h-screen w-screen overflow-hidden relative bg-gray-100">
       <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
         <button
-          onClick={() => { router.push("/dashboard"); }}
+          onClick={() => {
+            router.push("/dashboard");
+          }}
           className="bg-white rounded-lg px-3 py-1.5 shadow-sm border text-sm font-medium hover:bg-gray-50"
         >
           &larr; Back
@@ -194,7 +195,9 @@ export default function BoardPage() {
           object={editingObject}
           camera={store.camera}
           onSave={handleTextSave}
-          onClose={() => { store.setEditingId(null); }}
+          onClose={() => {
+            store.setEditingId(null);
+          }}
         />
       )}
     </div>
