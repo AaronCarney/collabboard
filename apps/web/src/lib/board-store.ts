@@ -59,6 +59,7 @@ export function useBoardStore(
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const channelRef = useRef<ReturnType<typeof realtimeSupabase.channel> | null>(null);
+  const subscribedRef = useRef(false);
 
   const userColor = USER_COLORS[Math.abs(hashCode(userId)) % USER_COLORS.length];
 
@@ -123,6 +124,7 @@ export function useBoardStore(
 
     void channel.subscribe((status: string) => {
       if (status === "SUBSCRIBED") {
+        subscribedRef.current = true;
         void channel.track({
           userName,
           color: userColor,
@@ -133,12 +135,14 @@ export function useBoardStore(
 
     channelRef.current = channel;
     return () => {
+      subscribedRef.current = false;
       void realtimeSupabase.removeChannel(channel);
     };
   }, [boardId, userId, userName, userColor, realtimeSupabase]);
 
   const broadcastCursor = useCallback(
     (x: number, y: number) => {
+      if (!subscribedRef.current) return;
       void channelRef.current?.send({
         type: "broadcast",
         event: "cursor",
@@ -170,11 +174,13 @@ export function useBoardStore(
 
       setObjects((prev) => [...prev, obj]);
 
-      void channelRef.current?.send({
-        type: "broadcast",
-        event: "object:upsert",
-        payload: { ...obj, _source: userId },
-      });
+      if (subscribedRef.current) {
+        void channelRef.current?.send({
+          type: "broadcast",
+          event: "object:upsert",
+          payload: { ...obj, _source: userId },
+        });
+      }
 
       await supabase.from("board_objects").insert(obj);
 
@@ -195,11 +201,13 @@ export function useBoardStore(
             updated_at: new Date().toISOString(),
           };
 
-          void channelRef.current?.send({
-            type: "broadcast",
-            event: "object:upsert",
-            payload: { ...updated, _source: userId },
-          });
+          if (subscribedRef.current) {
+            void channelRef.current?.send({
+              type: "broadcast",
+              event: "object:upsert",
+              payload: { ...updated, _source: userId },
+            });
+          }
 
           void supabase
             .from("board_objects")
@@ -220,11 +228,13 @@ export function useBoardStore(
   const deleteObject = useCallback(async (id: string) => {
     setObjects((prev) => prev.filter((o) => o.id !== id));
 
-    void channelRef.current?.send({
-      type: "broadcast",
-      event: "object:delete",
-      payload: { id },
-    });
+    if (subscribedRef.current) {
+      void channelRef.current?.send({
+        type: "broadcast",
+        event: "object:delete",
+        payload: { id },
+      });
+    }
 
     await supabase.from("board_objects").delete().eq("id", id);
   }, []);
