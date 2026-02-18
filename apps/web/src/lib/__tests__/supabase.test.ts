@@ -9,7 +9,7 @@ vi.mock("@supabase/supabase-js", () => ({
   createClient: mockCreateClient,
 }));
 
-import { createClerkSupabaseClient } from "../supabase";
+import { createClerkSupabaseClient, createRealtimeClient } from "../supabase";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -69,6 +69,39 @@ describe("createClerkSupabaseClient", () => {
     const [url, anonKey] = mockCreateClient.mock.calls[0];
 
     // These come from process.env; in test they'll be empty strings
+    expect(typeof url).toBe("string");
+    expect(typeof anonKey).toBe("string");
+  });
+
+  it("does not include debug console.log in accessToken callback", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const getToken = vi.fn().mockResolvedValue("my-token");
+    createClerkSupabaseClient(getToken);
+
+    const [, , options] = mockCreateClient.mock.calls[0];
+    await options.accessToken();
+
+    expect(consoleSpy).not.toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
+});
+
+describe("createRealtimeClient", () => {
+  it("creates a client without accessToken option", () => {
+    createRealtimeClient();
+
+    expect(mockCreateClient).toHaveBeenCalledTimes(1);
+    const [, , options] = mockCreateClient.mock.calls[0];
+
+    // Should have NO accessToken — anon-only for broadcast/presence
+    expect(options).toBeUndefined();
+  });
+
+  it("uses the same env vars for URL and anon key", () => {
+    createRealtimeClient();
+
+    const [url, anonKey] = mockCreateClient.mock.calls[0];
     expect(typeof url).toBe("string");
     expect(typeof anonKey).toBe("string");
   });

@@ -48,7 +48,8 @@ export function useBoardStore(
   boardId: string,
   userId: string,
   userName: string,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  realtimeSupabase: SupabaseClient
 ) {
   const [objects, setObjects] = useState<BoardObject[]>([]);
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 });
@@ -57,7 +58,7 @@ export function useBoardStore(
   const [cursors, setCursors] = useState<Map<string, CursorPosition>>(new Map());
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const channelRef = useRef<ReturnType<typeof realtimeSupabase.channel> | null>(null);
 
   const userColor = USER_COLORS[Math.abs(hashCode(userId)) % USER_COLORS.length];
 
@@ -67,7 +68,7 @@ export function useBoardStore(
   }, [boardId]);
 
   const subscribe = useCallback(() => {
-    const channel = supabase.channel(`board:${boardId}`, {
+    const channel = realtimeSupabase.channel(`board:${boardId}`, {
       config: { presence: { key: userId } },
     });
 
@@ -120,30 +121,21 @@ export function useBoardStore(
       setObjects((prev) => prev.filter((o) => o.id !== p.id));
     });
 
-    /* eslint-disable no-console */
-    void channel.subscribe((status: string, err?: Error) => {
-      console.log("[Realtime] channel status:", status, err ?? "");
+    void channel.subscribe((status: string) => {
       if (status === "SUBSCRIBED") {
         void channel.track({
           userName,
           color: userColor,
           onlineAt: new Date().toISOString(),
         });
-      } else if (status === "CHANNEL_ERROR") {
-        console.error("[Realtime] channel error — auth or config issue", err);
-      } else if (status === "TIMED_OUT") {
-        console.error("[Realtime] channel join timed out");
-      } else if (status === "CLOSED") {
-        console.warn("[Realtime] channel closed");
       }
     });
-    /* eslint-enable no-console */
 
     channelRef.current = channel;
     return () => {
-      void supabase.removeChannel(channel);
+      void realtimeSupabase.removeChannel(channel);
     };
-  }, [boardId, userId, userName, userColor]);
+  }, [boardId, userId, userName, userColor, realtimeSupabase]);
 
   const broadcastCursor = useCallback(
     (x: number, y: number) => {

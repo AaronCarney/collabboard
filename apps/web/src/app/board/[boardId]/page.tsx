@@ -4,7 +4,7 @@ import { useEffect, useCallback, useRef, useMemo } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
 import { useParams, useRouter } from "next/navigation";
 import { useBoardStore } from "@/lib/board-store";
-import { createClerkSupabaseClient } from "@/lib/supabase";
+import { createClerkSupabaseClient, createRealtimeClient } from "@/lib/supabase";
 import { BoardCanvas } from "@/components/board/BoardCanvas";
 import { ToolBar } from "@/components/board/ToolBar";
 import { PresenceBar } from "@/components/board/PresenceBar";
@@ -25,12 +25,14 @@ export default function BoardPage() {
   getTokenRef.current = getToken;
 
   const supabase = useMemo(() => createClerkSupabaseClient(() => getTokenRef.current()), []);
+  const realtimeSupabase = useMemo(() => createRealtimeClient(), []);
 
   const store = useBoardStore(
     boardId,
     user?.id ?? "",
     user?.fullName ?? user?.username ?? "Anonymous",
-    supabase
+    supabase,
+    realtimeSupabase
   );
 
   useEffect(() => {
