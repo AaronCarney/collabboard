@@ -17,8 +17,6 @@ export default function BoardPage() {
   const params = useParams();
   const router = useRouter();
   const boardId = params.boardId as string;
-  const initRef = useRef(false);
-
   // Use a ref so the Supabase client's accessToken callback always calls
   // the latest getToken without recreating the client (and its WebSocket).
   const getTokenRef = useRef(getToken);
@@ -36,12 +34,11 @@ export default function BoardPage() {
   );
 
   useEffect(() => {
-    if (!user || initRef.current) return;
-    initRef.current = true;
+    if (!user) return;
     void store.loadObjects();
     const cleanup = store.subscribe();
     return cleanup;
-  }, [user]);
+  }, [user, store.loadObjects, store.subscribe]);
 
   const lastCursorRef = useRef(0);
   const handleCursorMove = useCallback(
