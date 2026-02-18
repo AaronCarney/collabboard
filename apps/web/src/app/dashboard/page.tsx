@@ -1,7 +1,7 @@
 "use client";
 
 import { useUser, useAuth, UserButton } from "@clerk/nextjs";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClerkSupabaseClient } from "@/lib/supabase";
 import type { Board } from "@/types/board";
@@ -14,7 +14,10 @@ export default function DashboardPage() {
   const [boards, setBoards] = useState<Board[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const supabase = useMemo(() => createClerkSupabaseClient(() => getToken()), [getToken]);
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
+
+  const supabase = useMemo(() => createClerkSupabaseClient(() => getTokenRef.current()), []);
 
   const loadBoards = useCallback(async () => {
     if (!user) return;

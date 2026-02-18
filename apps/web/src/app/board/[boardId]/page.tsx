@@ -19,7 +19,12 @@ export default function BoardPage() {
   const boardId = params.boardId as string;
   const initRef = useRef(false);
 
-  const supabase = useMemo(() => createClerkSupabaseClient(() => getToken()), [getToken]);
+  // Use a ref so the Supabase client's accessToken callback always calls
+  // the latest getToken without recreating the client (and its WebSocket).
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
+
+  const supabase = useMemo(() => createClerkSupabaseClient(() => getTokenRef.current()), []);
 
   const store = useBoardStore(
     boardId,
