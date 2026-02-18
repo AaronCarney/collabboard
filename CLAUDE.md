@@ -2,7 +2,9 @@
 
 **Project:** Real-time collaborative whiteboard. Canvas 2D rendering, WebSocket sync via Cloudflare Durable Objects, persistent state in Supabase, auth via Clerk, AI commands via OpenAI structured outputs.
 
-**Stack:** Next.js 14.2.18 · tRPC 11 · Clerk 6 · Supabase · Cloudflare Workers + Durable Objects · Prisma 5 · Tailwind 3 · Canvas 2D API · OpenAI 4
+**Stack:** Next.js 14 (App Router) · Clerk · Supabase · Tailwind 3 · Canvas 2D API
+
+<!-- Inherited from gauntlet/CLAUDE.md: TDD mandate, git workflow, security basics, context hygiene, platform rules. -->
 
 ## Directory Map
 
@@ -34,7 +36,6 @@ pnpm test:load     # k6 WebSocket load test
 
 ## Code Style
 
-- **No `any` type** — use `unknown` + type guards, or proper generics
 - **No `as` casts** — fix the type, don't suppress it
 - **`import type`** for all type-only imports
 - **Zod validation** on all tRPC inputs, all WebSocket message handlers, all external data
@@ -55,18 +56,10 @@ pnpm test:load     # k6 WebSocket load test
 9. All tRPC mutations use `protectedProcedure`
 10. Optimistic updates on canvas — never block renders on network
 
-## TDD Mandate
+## Stack-Specific Security
 
-Write failing tests FIRST. Run tests after every change. Merge only green.
-
-Sequence for every feature: `/research` → `/plan` → @test-writer (failing tests) → implement → @code-reviewer → fix BLOCKING issues → `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
-
-## Security
-
-- Never hardcode secrets — use environment variables
-- Validate all inputs with Zod
 - Verify webhook signatures (Clerk, Stripe) before processing
-- Auth on all routes: `protectedProcedure` for mutations, `publicProcedure` for public reads
+- Auth routes: `protectedProcedure` for mutations, `publicProcedure` for public reads only
 
 ## MCP Rotation
 
@@ -77,16 +70,11 @@ Active 2-3 servers max. Rotate by task:
 - CF/DO: github + cloudflare
 - Research: context7 only
 
-Run `/cost` every 30 min — if >50k tokens, /compact or /clear.
-
-To temporarily disable a server: comment it out in `.mcp.json` and restart Claude Code.
-
 ## Git Worktrees
 
 - One Claude Code session per worktree — never share a session
 - Never let two sessions edit the same file simultaneously
 - Each worktree gets its own `.env.local` (copy from root)
-- Reconcile architectural conflicts in a planning session before resuming
 - Worktrees directory: `.trees/` (gitignored)
 
 ## Maintenance
