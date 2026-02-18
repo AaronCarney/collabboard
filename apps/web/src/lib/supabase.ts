@@ -19,5 +19,7 @@ export function createClerkSupabaseClient(getToken: () => Promise<string | null>
 // but broadcast and presence are ephemeral pub/sub that only need the anon key.
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function createRealtimeClient() {
-  return createClient(supabaseUrl, supabaseAnonKey);
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { persistSession: false },
+  });
 }

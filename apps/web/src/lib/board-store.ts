@@ -7,6 +7,8 @@ import { v4 as uuidv4 } from "uuid";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { hashCode, shouldAcceptUpdate } from "@/lib/board-logic";
 
+const DEBUG_REALTIME = process.env.NEXT_PUBLIC_DEBUG_REALTIME === "true";
+
 export interface Camera {
   x: number;
   y: number;
@@ -74,9 +76,8 @@ export function useBoardStore(
     });
 
     channel.on("presence", { event: "sync" }, () => {
+      if (DEBUG_REALTIME) console.log("[Realtime] presence sync"); // eslint-disable-line no-console
       const state = channel.presenceState<{ userName: string; color: string; onlineAt: string }>();
-      // eslint-disable-next-line no-console
-      console.log("[Realtime] presence sync, keys:", Object.keys(state));
       const users: PresenceUser[] = [];
       for (const [uid, presences] of Object.entries(state)) {
         const first = presences[0];
@@ -124,12 +125,10 @@ export function useBoardStore(
       setObjects((prev) => prev.filter((o) => o.id !== p.id));
     });
 
-    /* eslint-disable no-console */
-    void channel.subscribe((status: string, err?: Error) => {
-      console.log("[Realtime] channel status:", status, err ?? "");
+    void channel.subscribe((status: string) => {
+      if (DEBUG_REALTIME) console.log("[Realtime] channel status:", status); // eslint-disable-line no-console
       if (status === "SUBSCRIBED") {
         subscribedRef.current = true;
-        console.log("[Realtime] tracking presence for", userId, userName);
         void channel.track({
           userName,
           color: userColor,
@@ -137,7 +136,6 @@ export function useBoardStore(
         });
       }
     });
-    /* eslint-enable no-console */
 
     channelRef.current = channel;
     return () => {

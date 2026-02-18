@@ -95,7 +95,16 @@ describe("createRealtimeClient", () => {
     const [, , options] = mockCreateClient.mock.calls[0];
 
     // Should have NO accessToken — anon-only for broadcast/presence
-    expect(options).toBeUndefined();
+    expect(options).not.toHaveProperty("accessToken");
+  });
+
+  it("disables session persistence to avoid GoTrueClient conflict", () => {
+    createRealtimeClient();
+
+    const [, , options] = mockCreateClient.mock.calls[0];
+
+    expect(options).toHaveProperty("auth");
+    expect(options.auth).toEqual({ persistSession: false });
   });
 
   it("uses the same env vars for URL and anon key", () => {

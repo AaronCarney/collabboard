@@ -261,15 +261,13 @@ Open https://collabboard.aaroncarney.me — the page should load (auth will stil
 
 3. **Verify** these variables exist (no changes needed):
 
-| Variable                              | Value                                      |
-| ------------------------------------- | ------------------------------------------ |
-| `NEXT_PUBLIC_CLERK_SIGN_IN_URL`       | `/sign-in`                                 |
-| `NEXT_PUBLIC_CLERK_SIGN_UP_URL`       | `/sign-up`                                 |
-| `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL` | `/dashboard`                               |
-| `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL` | `/dashboard`                               |
-| `NEXT_PUBLIC_SUPABASE_URL`            | `https://tykzscnjfrrgvdibnlek.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY`       | (existing value)                           |
-| `SUPABASE_SERVICE_ROLE_KEY`           | (existing value)                           |
+| Variable                        | Value                                      |
+| ------------------------------- | ------------------------------------------ |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/sign-in`                                 |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | `/sign-up`                                 |
+| `NEXT_PUBLIC_SUPABASE_URL`      | `https://tykzscnjfrrgvdibnlek.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | (existing value)                           |
+| `SUPABASE_SERVICE_ROLE_KEY`     | (existing value)                           |
 
 4. Optional: keep the dev keys scoped to **Preview** and **Development** environments so preview deploys still work with the Clerk dev instance. <!-- noqa: secret -->
 
@@ -366,15 +364,13 @@ Open https://collabboard.aaroncarney.me — the page should load (auth will stil
 
 ## Reference: All Vercel Environment Variables
 
-| Variable                              | Value                                      | Scope      |
-| ------------------------------------- | ------------------------------------------ | ---------- | --------------------- |
-| `NEXT_PUBLIC_APP_URL`                 | `https://collabboard.aaroncarney.me`       | Production |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`   | `pk_live_...`                              | Production |
-| `CLERK_SECRET_KEY`                    | `sk_live_...`                              | Production | <!-- noqa: secret --> |
-| `NEXT_PUBLIC_CLERK_SIGN_IN_URL`       | `/sign-in`                                 | All        |
-| `NEXT_PUBLIC_CLERK_SIGN_UP_URL`       | `/sign-up`                                 | All        |
-| `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL` | `/dashboard`                               | All        |
-| `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL` | `/dashboard`                               | All        |
-| `NEXT_PUBLIC_SUPABASE_URL`            | `https://tykzscnjfrrgvdibnlek.supabase.co` | All        |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY`       | (existing value)                           | All        |
-| `SUPABASE_SERVICE_ROLE_KEY`           | (existing value)                           | All        |
+| Variable                            | Value                                      | Scope      |
+| ----------------------------------- | ------------------------------------------ | ---------- | --------------------- |
+| `NEXT_PUBLIC_APP_URL`               | `https://collabboard.aaroncarney.me`       | Production |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_live_...`                              | Production |
+| `CLERK_SECRET_KEY`                  | `sk_live_...`                              | Production | <!-- noqa: secret --> |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL`     | `/sign-in`                                 | All        |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_URL`     | `/sign-up`                                 | All        |
+| `NEXT_PUBLIC_SUPABASE_URL`          | `https://tykzscnjfrrgvdibnlek.supabase.co` | All        |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`     | (existing value)                           | All        |
+| `SUPABASE_SERVICE_ROLE_KEY`         | (existing value)                           | All        |
