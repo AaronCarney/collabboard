@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useCallback, useState } from "react";
-import type { BoardObject, CursorPosition } from "@/types/board";
+import type { BoardObject, CursorPosition, ObjectType } from "@/types/board";
 import type { Camera } from "@/lib/board-store";
 import { screenToWorld as screenToWorldFn, hitTest as hitTestFn } from "@/lib/board-logic";
 
@@ -10,6 +10,7 @@ interface BoardCanvasProps {
   camera: Camera;
   selectedId: string | null;
   editingId: string | null;
+  activeTool: ObjectType | "select";
   cursors: Map<string, CursorPosition>;
   onCanvasClick: (worldX: number, worldY: number) => void;
   onObjectSelect: (id: string | null) => void;
@@ -26,6 +27,7 @@ export function BoardCanvas({
   camera,
   selectedId,
   editingId: _editingId,
+  activeTool,
   cursors,
   onCanvasClick,
   onObjectSelect,
@@ -145,13 +147,14 @@ export function BoardCanvas({
         setDragStart({ x: e.clientX, y: e.clientY });
         setDragObjStart({ x: hit.x, y: hit.y });
       } else {
-        // Pan with left click on empty space
-        setIsPanning(true);
-        setDragStart({ x: e.clientX, y: e.clientY });
+        if (activeTool === "select") {
+          setIsPanning(true);
+          setDragStart({ x: e.clientX, y: e.clientY });
+        }
         onObjectSelect(null);
       }
     },
-    [screenToWorld, hitTest, onObjectSelect]
+    [screenToWorld, hitTest, onObjectSelect, activeTool]
   );
 
   const handleMouseMove = useCallback(

@@ -4,6 +4,7 @@ import { useEffect, useCallback, useRef, useMemo } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
 import { useParams, useRouter } from "next/navigation";
 import { useBoardStore } from "@/lib/board-store";
+import { createBoardKeyHandler } from "@/lib/board-keyboard";
 import { createClerkSupabaseClient, createRealtimeClient } from "@/lib/supabase";
 import { BoardCanvas } from "@/components/board/BoardCanvas";
 import { ToolBar } from "@/components/board/ToolBar";
@@ -120,21 +121,12 @@ export default function BoardPage() {
   }, [store.selectedId, store.deleteObject, store.setSelectedId]);
 
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (store.editingId) return;
-      if (e.key === "Delete" || e.key === "Backspace") {
-        handleDelete();
-      }
-      if (e.key === "Escape") {
-        store.setSelectedId(null);
-        store.setActiveTool("select");
-      }
-      if (e.key === "v" || e.key === "1") store.setActiveTool("select");
-      if (e.key === "s" || e.key === "2") store.setActiveTool("sticky_note");
-      if (e.key === "r" || e.key === "3") store.setActiveTool("rectangle");
-      if (e.key === "c" || e.key === "4") store.setActiveTool("circle");
-      if (e.key === "t" || e.key === "5") store.setActiveTool("text");
-    };
+    const handleKey = createBoardKeyHandler({
+      editingId: store.editingId,
+      handleDelete,
+      setSelectedId: store.setSelectedId,
+      setActiveTool: store.setActiveTool,
+    });
     window.addEventListener("keydown", handleKey);
     return () => {
       window.removeEventListener("keydown", handleKey);
@@ -184,6 +176,7 @@ export default function BoardPage() {
         camera={store.camera}
         selectedId={store.selectedId}
         editingId={store.editingId}
+        activeTool={store.activeTool}
         cursors={store.cursors}
         onCanvasClick={handleCanvasClick}
         onObjectSelect={store.setSelectedId}
