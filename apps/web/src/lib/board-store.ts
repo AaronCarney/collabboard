@@ -75,6 +75,8 @@ export function useBoardStore(
 
     channel.on("presence", { event: "sync" }, () => {
       const state = channel.presenceState<{ userName: string; color: string; onlineAt: string }>();
+      // eslint-disable-next-line no-console
+      console.log("[Realtime] presence sync, keys:", Object.keys(state));
       const users: PresenceUser[] = [];
       for (const [uid, presences] of Object.entries(state)) {
         const first = presences[0];
@@ -122,9 +124,12 @@ export function useBoardStore(
       setObjects((prev) => prev.filter((o) => o.id !== p.id));
     });
 
-    void channel.subscribe((status: string) => {
+    /* eslint-disable no-console */
+    void channel.subscribe((status: string, err?: Error) => {
+      console.log("[Realtime] channel status:", status, err ?? "");
       if (status === "SUBSCRIBED") {
         subscribedRef.current = true;
+        console.log("[Realtime] tracking presence for", userId, userName);
         void channel.track({
           userName,
           color: userColor,
@@ -132,6 +137,7 @@ export function useBoardStore(
         });
       }
     });
+    /* eslint-enable no-console */
 
     channelRef.current = channel;
     return () => {
