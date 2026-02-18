@@ -24,9 +24,10 @@ create table public.boards (
 alter table public.boards enable row level security;
 
 -- RLS policies using auth.jwt() to read Clerk user ID from "sub" claim
-create policy "Users can view own boards"
+-- Any authenticated user can view any board (shared links work)
+create policy "Authenticated users can view boards"
   on public.boards for select
-  using (created_by = (auth.jwt()->>'sub'));
+  using (auth.role() = 'authenticated');
 
 create policy "Users can create boards"
   on public.boards for insert
