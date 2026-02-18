@@ -7,8 +7,9 @@ describe("createBoardKeyHandler", () => {
     const handler = createBoardKeyHandler({
       editingId: null,
       handleDelete: vi.fn(),
-      setSelectedId: vi.fn(),
+      setSelectedIds: vi.fn(),
       setActiveTool,
+      objects: [],
     });
 
     for (const key of ["v", "s", "r", "c", "t", "1", "2", "3", "4", "5"]) {
@@ -23,8 +24,9 @@ describe("createBoardKeyHandler", () => {
     const handler = createBoardKeyHandler({
       editingId: null,
       handleDelete,
-      setSelectedId: vi.fn(),
+      setSelectedIds: vi.fn(),
       setActiveTool: vi.fn(),
+      objects: [],
     });
 
     handler(new KeyboardEvent("keydown", { key: "Delete" }));
@@ -36,26 +38,28 @@ describe("createBoardKeyHandler", () => {
     const handler = createBoardKeyHandler({
       editingId: null,
       handleDelete,
-      setSelectedId: vi.fn(),
+      setSelectedIds: vi.fn(),
       setActiveTool: vi.fn(),
+      objects: [],
     });
 
     handler(new KeyboardEvent("keydown", { key: "Backspace" }));
     expect(handleDelete).toHaveBeenCalledOnce();
   });
 
-  it("handles Escape key", () => {
-    const setSelectedId = vi.fn();
+  it("handles Escape key — clears selection", () => {
+    const setSelectedIds = vi.fn();
     const setActiveTool = vi.fn();
     const handler = createBoardKeyHandler({
       editingId: null,
       handleDelete: vi.fn(),
-      setSelectedId,
+      setSelectedIds,
       setActiveTool,
+      objects: [],
     });
 
     handler(new KeyboardEvent("keydown", { key: "Escape" }));
-    expect(setSelectedId).toHaveBeenCalledWith(null);
+    expect(setSelectedIds).toHaveBeenCalledWith([]);
     expect(setActiveTool).toHaveBeenCalledWith("select");
   });
 
@@ -65,13 +69,34 @@ describe("createBoardKeyHandler", () => {
     const handler = createBoardKeyHandler({
       editingId: "some-id",
       handleDelete,
-      setSelectedId: vi.fn(),
+      setSelectedIds: vi.fn(),
       setActiveTool,
+      objects: [],
     });
 
     handler(new KeyboardEvent("keydown", { key: "Delete" }));
     handler(new KeyboardEvent("keydown", { key: "Escape" }));
     expect(handleDelete).not.toHaveBeenCalled();
     expect(setActiveTool).not.toHaveBeenCalled();
+  });
+
+  it("Ctrl+A selects all objects", () => {
+    const setSelectedIds = vi.fn();
+    const objects = [{ id: "obj-1" }, { id: "obj-2" }, { id: "obj-3" }];
+    const handler = createBoardKeyHandler({
+      editingId: null,
+      handleDelete: vi.fn(),
+      setSelectedIds,
+      setActiveTool: vi.fn(),
+      objects: objects as Parameters<typeof createBoardKeyHandler>[0]["objects"],
+    });
+
+    const event = new KeyboardEvent("keydown", { key: "a", ctrlKey: true });
+    // Spy on preventDefault
+    const preventDefaultSpy = vi.spyOn(event, "preventDefault");
+    handler(event);
+
+    expect(setSelectedIds).toHaveBeenCalledWith(["obj-1", "obj-2", "obj-3"]);
+    expect(preventDefaultSpy).toHaveBeenCalled();
   });
 });

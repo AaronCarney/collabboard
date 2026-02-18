@@ -57,7 +57,7 @@ export function useBoardStore(
 ) {
   const [objects, setObjects] = useState<BoardObject[]>([]);
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 });
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeTool, setActiveTool] = useState<ObjectType | "select">("select");
   const [cursors, setCursors] = useState<Map<string, CursorPosition>>(new Map());
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([]);
@@ -237,6 +237,51 @@ export function useBoardStore(
     [userId]
   );
 
+  const moveObjects = useCallback(
+    (moves: { id: string; x: number; y: number }[], persist = false) => {
+      if (DEBUG_REALTIME)
+        console.log("[Realtime] moveObjects batch:", moves.length, "objects, persist:", persist); // eslint-disable-line no-console
+      // Known limitation: moves.find() inside .map() is O(n*m). Fine for typical
+      // selections (<20 objects). Convert moves to a Map if this becomes a bottleneck.
+      setObjects((prev) =>
+        prev.map((o) => {
+          const move = moves.find((m) => m.id === o.id);
+          if (!move) return o;
+          const updated = {
+            ...o,
+            x: move.x,
+            y: move.y,
+            version: o.version + 1,
+            updated_at: new Date().toISOString(),
+          };
+
+          if (subscribedRef.current) {
+            void channelRef.current?.send({
+              type: "broadcast",
+              event: "object:upsert",
+              payload: { ...updated, _source: userId },
+            });
+          }
+
+          if (persist) {
+            void supabase
+              .from("board_objects")
+              .update({
+                x: move.x,
+                y: move.y,
+                version: updated.version,
+                updated_at: updated.updated_at,
+              })
+              .eq("id", o.id);
+          }
+
+          return updated;
+        })
+      );
+    },
+    [userId]
+  );
+
   const deleteObject = useCallback(async (id: string) => {
     setObjects((prev) => prev.filter((o) => o.id !== id));
 
@@ -255,8 +300,8 @@ export function useBoardStore(
     objects,
     camera,
     setCamera,
-    selectedId,
-    setSelectedId,
+    selectedIds,
+    setSelectedIds,
     activeTool,
     setActiveTool,
     cursors,
@@ -268,6 +313,7 @@ export function useBoardStore(
     broadcastCursor,
     createObject,
     updateObject,
+    moveObjects,
     deleteObject,
     userColor,
   };

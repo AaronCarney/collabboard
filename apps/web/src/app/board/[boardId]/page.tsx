@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useCallback, useRef, useMemo } from "react";
+import { useEffect, useCallback, useRef, useMemo, useState } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
 import { useParams, useRouter } from "next/navigation";
+import type { BoardObject } from "@/types/board";
 import { useBoardStore } from "@/lib/board-store";
 import { createBoardKeyHandler } from "@/lib/board-keyboard";
 import { createClerkSupabaseClient, createRealtimeClient } from "@/lib/supabase";
@@ -10,6 +11,7 @@ import { BoardCanvas } from "@/components/board/BoardCanvas";
 import { ToolBar } from "@/components/board/ToolBar";
 import { PresenceBar } from "@/components/board/PresenceBar";
 import { TextEditor } from "@/components/board/TextEditor";
+import { PropertyPanel } from "@/components/board/PropertyPanel";
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export default function BoardPage() {
@@ -18,8 +20,6 @@ export default function BoardPage() {
   const params = useParams();
   const router = useRouter();
   const boardId = params.boardId as string;
-  // Use a ref so the Supabase client's accessToken callback always calls
-  // the latest getToken without recreating the client (and its WebSocket).
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
 
@@ -33,6 +33,9 @@ export default function BoardPage() {
     supabase,
     realtimeSupabase
   );
+
+  // Space key tracking for pan
+  const [isSpaceHeld, setIsSpaceHeld] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -63,11 +66,41 @@ export default function BoardPage() {
     [store.activeTool, store.createObject, store.setActiveTool]
   );
 
-  const handleObjectMove = useCallback(
-    (id: string, x: number, y: number) => {
-      store.updateObject(id, { x, y });
+  const handleObjectSelect = useCallback(
+    (id: string | null, additive: boolean) => {
+      if (id === null) {
+        store.setSelectedIds([]);
+        return;
+      }
+      if (additive) {
+        store.setSelectedIds((prev) => {
+          if (prev.includes(id)) {
+            return prev.filter((i) => i !== id);
+          }
+          return [...prev, id];
+        });
+      } else {
+        store.setSelectedIds([id]);
+      }
     },
-    [store.updateObject]
+    [store.setSelectedIds]
+  );
+
+  const handleObjectClick = useCallback(
+    (id: string) => {
+      const obj = store.objects.find((o) => o.id === id);
+      if (obj && (obj.type === "sticky_note" || obj.type === "text")) {
+        store.setEditingId(id);
+      }
+    },
+    [store.objects, store.setEditingId]
+  );
+
+  const handleObjectsMove = useCallback(
+    (moves: { id: string; x: number; y: number }[], persist?: boolean) => {
+      store.moveObjects(moves, persist);
+    },
+    [store.moveObjects]
   );
 
   const handleDoubleClick = useCallback(
@@ -78,6 +111,20 @@ export default function BoardPage() {
       }
     },
     [store.objects, store.setEditingId]
+  );
+
+  const handleSelectionBox = useCallback(
+    (ids: string[]) => {
+      store.setSelectedIds(ids);
+    },
+    [store.setSelectedIds]
+  );
+
+  const handleObjectResize = useCallback(
+    (id: string, bounds: { x: number; y: number; width: number; height: number }) => {
+      store.updateObject(id, bounds);
+    },
+    [store.updateObject]
   );
 
   const handleTextSave = useCallback(
@@ -114,28 +161,65 @@ export default function BoardPage() {
   );
 
   const handleDelete = useCallback(() => {
-    if (store.selectedId) {
-      void store.deleteObject(store.selectedId);
-      store.setSelectedId(null);
+    for (const id of store.selectedIds) {
+      void store.deleteObject(id);
     }
-  }, [store.selectedId, store.deleteObject, store.setSelectedId]);
+    store.setSelectedIds([]);
+  }, [store.selectedIds, store.deleteObject, store.setSelectedIds]);
 
+  const handleUpdateObjects = useCallback(
+    (ids: string[], changes: Partial<BoardObject>) => {
+      for (const id of ids) {
+        store.updateObject(id, changes);
+      }
+    },
+    [store.updateObject]
+  );
+
+  // Keyboard handling (including Space for pan)
   useEffect(() => {
     const handleKey = createBoardKeyHandler({
       editingId: store.editingId,
       handleDelete,
-      setSelectedId: store.setSelectedId,
+      setSelectedIds: store.setSelectedIds,
       setActiveTool: store.setActiveTool,
+      objects: store.objects,
     });
-    window.addEventListener("keydown", handleKey);
-    return () => {
-      window.removeEventListener("keydown", handleKey);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space" && !store.editingId) {
+        e.preventDefault();
+        setIsSpaceHeld(true);
+        return;
+      }
+      handleKey(e);
     };
-  }, [store.editingId, handleDelete, store.setSelectedId, store.setActiveTool]);
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        setIsSpaceHeld(false);
+      }
+    };
+
+    const handleBlur = () => {
+      setIsSpaceHeld(false);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, [store.editingId, handleDelete, store.setSelectedIds, store.setActiveTool, store.objects]);
 
   const editingObject = store.editingId
     ? store.objects.find((o) => o.id === store.editingId)
     : null;
+
+  const selectedObjects = store.objects.filter((o) => store.selectedIds.includes(o.id));
 
   if (!user) {
     return (
@@ -162,7 +246,7 @@ export default function BoardPage() {
         activeTool={store.activeTool}
         onToolChange={store.setActiveTool}
         onDelete={handleDelete}
-        hasSelection={!!store.selectedId}
+        hasSelection={store.selectedIds.length > 0}
       />
 
       <PresenceBar users={store.presenceUsers} currentUserId={user.id} />
@@ -174,18 +258,26 @@ export default function BoardPage() {
       <BoardCanvas
         objects={store.objects}
         camera={store.camera}
-        selectedId={store.selectedId}
+        selectedIds={store.selectedIds}
         editingId={store.editingId}
         activeTool={store.activeTool}
+        isSpaceHeld={isSpaceHeld}
         cursors={store.cursors}
         onCanvasClick={handleCanvasClick}
-        onObjectSelect={store.setSelectedId}
-        onObjectMove={handleObjectMove}
+        onObjectSelect={handleObjectSelect}
+        onObjectClick={handleObjectClick}
+        onObjectsMove={handleObjectsMove}
         onObjectDoubleClick={handleDoubleClick}
+        onSelectionBox={handleSelectionBox}
+        onObjectResize={handleObjectResize}
         onPan={handlePan}
         onZoom={handleZoom}
         onCursorMove={handleCursorMove}
       />
+
+      {selectedObjects.length > 0 && !editingObject && (
+        <PropertyPanel selectedObjects={selectedObjects} onUpdateObjects={handleUpdateObjects} />
+      )}
 
       {editingObject && (
         <TextEditor

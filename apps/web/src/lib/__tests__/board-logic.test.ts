@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { screenToWorld, hitTest, hashCode, shouldAcceptUpdate } from "../board-logic";
+import {
+  screenToWorld,
+  hitTest,
+  hashCode,
+  shouldAcceptUpdate,
+  objectsInRect,
+  getResizeHandles,
+  hitTestHandle,
+} from "../board-logic";
 import type { BoardObject } from "@/types/board";
 
 // Helper to create a BoardObject with minimal required fields
@@ -274,5 +282,108 @@ describe("shouldAcceptUpdate", () => {
   it("works with version 1 (newly created objects)", () => {
     expect(shouldAcceptUpdate(1, 1)).toBe(true);
     expect(shouldAcceptUpdate(2, 1)).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// objectsInRect (Phase 3 — rubber-band selection)
+// ─────────────────────────────────────────────────────────────
+describe("objectsInRect", () => {
+  const r1 = makeObject({ id: "r1", type: "rectangle", x: 50, y: 50, width: 100, height: 100 });
+  const r2 = makeObject({ id: "r2", type: "rectangle", x: 300, y: 300, width: 100, height: 100 });
+  const c1 = makeObject({ id: "c1", type: "circle", x: 200, y: 200, width: 80, height: 80 });
+
+  it("returns objects fully contained in the selection rect", () => {
+    const result = objectsInRect({ x: 40, y: 40, width: 120, height: 120 }, [r1, r2, c1]);
+    expect(result.map((o) => o.id)).toEqual(["r1"]);
+  });
+
+  it("returns objects that overlap (not just fully contained)", () => {
+    // Selection overlaps r1 partially
+    const result = objectsInRect({ x: 100, y: 100, width: 150, height: 150 }, [r1, r2, c1]);
+    expect(result.map((o) => o.id)).toContain("r1");
+    expect(result.map((o) => o.id)).toContain("c1");
+  });
+
+  it("returns empty when no objects intersect", () => {
+    const result = objectsInRect({ x: 500, y: 500, width: 100, height: 100 }, [r1, r2, c1]);
+    expect(result).toEqual([]);
+  });
+
+  it("handles negative-dimension rects (dragging right-to-left)", () => {
+    // Equivalent to {x: 40, y: 40, width: 120, height: 120}
+    const result = objectsInRect({ x: 160, y: 160, width: -120, height: -120 }, [r1, r2, c1]);
+    expect(result.map((o) => o.id)).toContain("r1");
+  });
+
+  it("handles circles using bounding-box intersection", () => {
+    // Selection that just clips the circle's bounding box
+    const result = objectsInRect({ x: 270, y: 270, width: 20, height: 20 }, [c1]);
+    // c1 is at 200-280, 200-280. Selection 270-290 overlaps
+    expect(result.map((o) => o.id)).toContain("c1");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// getResizeHandles (Phase 4)
+// ─────────────────────────────────────────────────────────────
+describe("getResizeHandles", () => {
+  const rect = makeObject({ id: "r1", type: "rectangle", x: 100, y: 100, width: 200, height: 150 });
+
+  it("returns 8 handles", () => {
+    const handles = getResizeHandles(rect);
+    expect(handles).toHaveLength(8);
+  });
+
+  it("has corners at the correct positions", () => {
+    const handles = getResizeHandles(rect);
+    const nw = handles.find((h) => h.position === "nw");
+    const se = handles.find((h) => h.position === "se");
+    expect(nw).toBeDefined();
+    expect(se).toBeDefined();
+    if (nw && se) {
+      expect(nw.x).toBe(100);
+      expect(nw.y).toBe(100);
+      expect(se.x).toBe(300);
+      expect(se.y).toBe(250);
+    }
+  });
+
+  it("has edge midpoints at the correct positions", () => {
+    const handles = getResizeHandles(rect);
+    const n = handles.find((h) => h.position === "n");
+    const e = handles.find((h) => h.position === "e");
+    expect(n).toBeDefined();
+    expect(e).toBeDefined();
+    if (n && e) {
+      expect(n.x).toBe(200); // midpoint x
+      expect(n.y).toBe(100); // top edge
+      expect(e.x).toBe(300); // right edge
+      expect(e.y).toBe(175); // midpoint y
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// hitTestHandle (Phase 4)
+// ─────────────────────────────────────────────────────────────
+describe("hitTestHandle", () => {
+  const rect = makeObject({ id: "r1", type: "rectangle", x: 100, y: 100, width: 200, height: 150 });
+
+  it("returns the handle position when clicking near a corner", () => {
+    // SE corner is at (300, 250)
+    const result = hitTestHandle(302, 248, rect, 8);
+    expect(result).toBe("se");
+  });
+
+  it("returns null when clicking away from handles", () => {
+    const result = hitTestHandle(200, 175, rect, 8);
+    expect(result).toBeNull();
+  });
+
+  it("returns the correct edge handle", () => {
+    // N edge midpoint is at (200, 100)
+    const result = hitTestHandle(200, 98, rect, 8);
+    expect(result).toBe("n");
   });
 });

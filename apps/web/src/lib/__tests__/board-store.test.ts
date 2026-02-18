@@ -157,7 +157,7 @@ describe("useBoardStore — initial state", () => {
     const { result } = renderHook(() =>
       useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
     );
-    expect(result.current.selectedId).toBeNull();
+    expect(result.current.selectedIds).toEqual([]);
   });
 
   it("assigns a deterministic user color based on userId", () => {
@@ -609,5 +609,176 @@ describe("useBoardStore — dual-client routing", () => {
     expect(mockRealtimeChannelSend).toHaveBeenCalledWith(
       expect.objectContaining({ type: "broadcast", event: "object:delete" })
     );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// moveObjects (batch position update)
+// ─────────────────────────────────────────────────────────────
+describe("useBoardStore — moveObjects", () => {
+  it("updates positions of multiple objects in one call", async () => {
+    const { v4 } = await import("uuid");
+    (v4 as ReturnType<typeof vi.fn>).mockReturnValueOnce("obj-a").mockReturnValueOnce("obj-b");
+
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    await act(async () => {
+      await result.current.createObject("sticky_note", 0, 0);
+    });
+    await act(async () => {
+      await result.current.createObject("rectangle", 100, 100);
+    });
+
+    act(() => {
+      result.current.moveObjects([
+        { id: "obj-a", x: 50, y: 60 },
+        { id: "obj-b", x: 200, y: 300 },
+      ]);
+    });
+
+    expect(result.current.objects[0].x).toBe(50);
+    expect(result.current.objects[0].y).toBe(60);
+    expect(result.current.objects[1].x).toBe(200);
+    expect(result.current.objects[1].y).toBe(300);
+  });
+
+  it("increments version for each moved object", async () => {
+    const { v4 } = await import("uuid");
+    (v4 as ReturnType<typeof vi.fn>).mockReturnValueOnce("obj-a").mockReturnValueOnce("obj-b");
+
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    await act(async () => {
+      await result.current.createObject("sticky_note", 0, 0);
+    });
+    await act(async () => {
+      await result.current.createObject("rectangle", 100, 100);
+    });
+
+    // Both start at version 1
+    expect(result.current.objects[0].version).toBe(1);
+    expect(result.current.objects[1].version).toBe(1);
+
+    act(() => {
+      result.current.moveObjects([
+        { id: "obj-a", x: 50, y: 60 },
+        { id: "obj-b", x: 200, y: 300 },
+      ]);
+    });
+
+    expect(result.current.objects[0].version).toBe(2);
+    expect(result.current.objects[1].version).toBe(2);
+  });
+
+  it("does not modify objects not in the moves array", async () => {
+    const { v4 } = await import("uuid");
+    (v4 as ReturnType<typeof vi.fn>).mockReturnValueOnce("obj-a").mockReturnValueOnce("obj-b");
+
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    await act(async () => {
+      await result.current.createObject("sticky_note", 0, 0);
+    });
+    await act(async () => {
+      await result.current.createObject("rectangle", 100, 100);
+    });
+
+    act(() => {
+      result.current.moveObjects([{ id: "obj-a", x: 50, y: 60 }]);
+    });
+
+    // obj-b unchanged
+    expect(result.current.objects[1].x).toBe(100);
+    expect(result.current.objects[1].y).toBe(100);
+    expect(result.current.objects[1].version).toBe(1);
+  });
+
+  it("broadcasts and persists each moved object", async () => {
+    const { v4 } = await import("uuid");
+    (v4 as ReturnType<typeof vi.fn>).mockReturnValueOnce("obj-a").mockReturnValueOnce("obj-b");
+
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    act(() => {
+      result.current.subscribe();
+    });
+
+    await act(async () => {
+      await result.current.createObject("sticky_note", 0, 0);
+    });
+    await act(async () => {
+      await result.current.createObject("rectangle", 100, 100);
+    });
+
+    // Clear mocks from creation broadcasts
+    mockRealtimeChannelSend.mockClear();
+    mockUpdate.mockClear();
+
+    act(() => {
+      result.current.moveObjects(
+        [
+          { id: "obj-a", x: 50, y: 60 },
+          { id: "obj-b", x: 200, y: 300 },
+        ],
+        true
+      );
+    });
+
+    // Should broadcast upsert for each moved object
+    expect(mockRealtimeChannelSend).toHaveBeenCalledTimes(2);
+    expect(mockRealtimeChannelSend).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "broadcast", event: "object:upsert" })
+    );
+
+    // Should persist each moved object via REST
+    expect(mockUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not persist to REST when persist flag is false", async () => {
+    const { v4 } = await import("uuid");
+    (v4 as ReturnType<typeof vi.fn>).mockReturnValueOnce("obj-a").mockReturnValueOnce("obj-b");
+
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    act(() => {
+      result.current.subscribe();
+    });
+
+    await act(async () => {
+      await result.current.createObject("sticky_note", 0, 0);
+    });
+    await act(async () => {
+      await result.current.createObject("rectangle", 100, 100);
+    });
+
+    mockRealtimeChannelSend.mockClear();
+    mockUpdate.mockClear();
+
+    act(() => {
+      result.current.moveObjects([
+        { id: "obj-a", x: 50, y: 60 },
+        { id: "obj-b", x: 200, y: 300 },
+      ]);
+    });
+
+    // Still broadcasts for realtime collaboration
+    expect(mockRealtimeChannelSend).toHaveBeenCalledTimes(2);
+
+    // But does NOT persist to REST (saves DB writes during drag)
+    expect(mockUpdate).not.toHaveBeenCalled();
+
+    // State is still updated locally
+    expect(result.current.objects[0].x).toBe(50);
+    expect(result.current.objects[1].x).toBe(200);
   });
 });

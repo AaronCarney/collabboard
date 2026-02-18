@@ -2,37 +2,60 @@
 
 import { useRef, useEffect, useCallback, useState } from "react";
 import type { BoardObject, CursorPosition, ObjectType } from "@/types/board";
+import { PLACEHOLDER_CONTENT } from "@/types/board";
 import type { Camera } from "@/lib/board-store";
-import { screenToWorld as screenToWorldFn, hitTest as hitTestFn } from "@/lib/board-logic";
+import type { HandlePosition, SelectionRect } from "@/lib/board-logic";
+import {
+  screenToWorld as screenToWorldFn,
+  hitTest as hitTestFn,
+  objectsInRect,
+  getResizeHandles,
+  hitTestHandle,
+} from "@/lib/board-logic";
 
 interface BoardCanvasProps {
   objects: BoardObject[];
   camera: Camera;
-  selectedId: string | null;
+  selectedIds: string[];
   editingId: string | null;
   activeTool: ObjectType | "select";
+  isSpaceHeld: boolean;
   cursors: Map<string, CursorPosition>;
   onCanvasClick: (worldX: number, worldY: number) => void;
-  onObjectSelect: (id: string | null) => void;
-  onObjectMove: (id: string, x: number, y: number) => void;
+  onObjectSelect: (id: string | null, additive: boolean) => void;
+  onObjectClick: (id: string) => void;
+  onObjectsMove: (moves: { id: string; x: number; y: number }[], persist?: boolean) => void;
   onObjectDoubleClick: (id: string) => void;
+  onSelectionBox: (ids: string[]) => void;
+  onObjectResize: (
+    id: string,
+    bounds: { x: number; y: number; width: number; height: number }
+  ) => void;
   onPan: (dx: number, dy: number) => void;
   onZoom: (delta: number, cx: number, cy: number) => void;
   onCursorMove: (worldX: number, worldY: number) => void;
 }
 
+const HANDLE_SIZE = 8;
+const MIN_OBJECT_SIZE = 20;
+const CLICK_THRESHOLD = 3;
+
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function BoardCanvas({
   objects,
   camera,
-  selectedId,
+  selectedIds,
   editingId: _editingId,
   activeTool,
+  isSpaceHeld,
   cursors,
   onCanvasClick,
   onObjectSelect,
-  onObjectMove,
+  onObjectClick,
+  onObjectsMove,
   onObjectDoubleClick,
+  onSelectionBox,
+  onObjectResize,
   onPan,
   onZoom,
   onCursorMove,
@@ -41,9 +64,23 @@ export function BoardCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [dragObjStart, setDragObjStart] = useState({ x: 0, y: 0 });
+  const dragStartPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const [selectionRect, setSelectionRect] = useState<SelectionRect | null>(null);
+  const [resizeHandle, setResizeHandle] = useState<HandlePosition | null>(null);
+  const [resizeObjStart, setResizeObjStart] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [resizeObjId, setResizeObjId] = useState<string | null>(null);
+  const clickedSelectedIdRef = useRef<string | null>(null);
+  const draggedObjIdRef = useRef<string | null>(null);
   const animFrameRef = useRef<number>(0);
+  const lastResizeBroadcast = useRef(0);
 
   // Screen to world coords
   const screenToWorld = useCallback(
@@ -85,7 +122,16 @@ export function BoardCanvas({
 
     // Objects
     for (const obj of objects) {
-      drawObject(ctx, obj, obj.id === selectedId);
+      const isSelected = selectedIds.includes(obj.id);
+      drawObject(ctx, obj, isSelected);
+      if (isSelected) {
+        drawResizeHandles(ctx, obj, camera.zoom);
+      }
+    }
+
+    // Selection rectangle
+    if (selectionRect) {
+      drawSelectionRect(ctx, selectionRect);
     }
 
     // Remote cursors
@@ -94,7 +140,7 @@ export function BoardCanvas({
     }
 
     ctx.restore();
-  }, [objects, camera, selectedId, cursors]);
+  }, [objects, camera, selectedIds, cursors, selectionRect]);
 
   // Animation loop
   useEffect(() => {
@@ -132,7 +178,7 @@ export function BoardCanvas({
       const sy = e.clientY - rect.top;
       const world = screenToWorld(sx, sy);
 
-      // Middle mouse or space+click = pan
+      // Middle mouse = pan always
       if (e.button === 1) {
         setIsPanning(true);
         setDragStart({ x: e.clientX, y: e.clientY });
@@ -140,21 +186,74 @@ export function BoardCanvas({
         return;
       }
 
+      // Space held = pan from anywhere
+      if (isSpaceHeld) {
+        setIsPanning(true);
+        setDragStart({ x: e.clientX, y: e.clientY });
+        return;
+      }
+
+      // Check for resize handle hit on selected objects
+      for (const id of selectedIds) {
+        const obj = objects.find((o) => o.id === id);
+        if (obj) {
+          const handlePos = hitTestHandle(world.x, world.y, obj, HANDLE_SIZE / camera.zoom);
+          if (handlePos) {
+            setIsResizing(true);
+            setResizeHandle(handlePos);
+            setResizeObjId(obj.id);
+            setResizeObjStart({ x: obj.x, y: obj.y, width: obj.width, height: obj.height });
+            setDragStart({ x: e.clientX, y: e.clientY });
+            return;
+          }
+        }
+      }
+
       const hit = hitTest(world.x, world.y);
       if (hit) {
-        onObjectSelect(hit.id);
+        const wasAlreadySelected = selectedIds.includes(hit.id);
+        if (wasAlreadySelected && !e.shiftKey) {
+          // Click on already-selected object (no shift): set up click-again-to-edit
+          clickedSelectedIdRef.current = hit.id;
+        } else {
+          // New selection or Shift+toggle
+          clickedSelectedIdRef.current = null;
+          onObjectSelect(hit.id, e.shiftKey);
+        }
         setIsDragging(true);
         setDragStart({ x: e.clientX, y: e.clientY });
-        setDragObjStart({ x: hit.x, y: hit.y });
+        // Snapshot all selected objects' positions for multi-drag.
+        // Known limitation: when Shift+clicking a new object, onObjectSelect fires above
+        // but selectedIds won't include it until re-render, so only the clicked object moves.
+        // Fix would require lifting selection into a ref or passing updated IDs synchronously.
+        const positions = new Map<string, { x: number; y: number }>();
+        const currentSelectedIds = selectedIds.includes(hit.id) ? selectedIds : [hit.id];
+        for (const sid of currentSelectedIds) {
+          const obj = objects.find((o) => o.id === sid);
+          if (obj) positions.set(sid, { x: obj.x, y: obj.y });
+        }
+        dragStartPositionsRef.current = positions;
+        draggedObjIdRef.current = hit.id;
       } else {
         if (activeTool === "select") {
-          setIsPanning(true);
+          // Start rubber-band selection on empty space
+          setIsSelecting(true);
           setDragStart({ x: e.clientX, y: e.clientY });
+          setSelectionRect({ x: world.x, y: world.y, width: 0, height: 0 });
         }
-        onObjectSelect(null);
+        onObjectSelect(null, false);
       }
     },
-    [screenToWorld, hitTest, onObjectSelect, activeTool]
+    [
+      screenToWorld,
+      hitTest,
+      onObjectSelect,
+      activeTool,
+      isSpaceHeld,
+      selectedIds,
+      objects,
+      camera.zoom,
+    ]
   );
 
   const handleMouseMove = useCallback(
@@ -175,10 +274,53 @@ export function BoardCanvas({
         return;
       }
 
-      if (isDragging && selectedId) {
+      if (isResizing && resizeObjStart && resizeHandle && resizeObjId) {
         const dx = (e.clientX - dragStart.x) / camera.zoom;
         const dy = (e.clientY - dragStart.y) / camera.zoom;
-        onObjectMove(selectedId, dragObjStart.x + dx, dragObjStart.y + dy);
+        const bounds = computeResizeBounds(resizeObjStart, resizeHandle, dx, dy);
+
+        // Throttle broadcasts to 50ms
+        const now = Date.now();
+        if (now - lastResizeBroadcast.current > 50) {
+          lastResizeBroadcast.current = now;
+          onObjectResize(resizeObjId, bounds);
+        }
+        return;
+      }
+
+      if (isSelecting) {
+        const startWorld = screenToWorld(dragStart.x - rect.left, dragStart.y - rect.top);
+        setSelectionRect({
+          x: startWorld.x,
+          y: startWorld.y,
+          width: world.x - startWorld.x,
+          height: world.y - startWorld.y,
+        });
+        return;
+      }
+
+      if (isDragging && selectedIds.length > 0) {
+        const dx = (e.clientX - dragStart.x) / camera.zoom;
+        const dy = (e.clientY - dragStart.y) / camera.zoom;
+        // If we moved, clear the clicked-selected flag
+        if (
+          Math.abs(e.clientX - dragStart.x) > CLICK_THRESHOLD ||
+          Math.abs(e.clientY - dragStart.y) > CLICK_THRESHOLD
+        ) {
+          clickedSelectedIdRef.current = null;
+        }
+        // Move all selected objects by the same delta.
+        // Known limitation: broadcasts fire every mousemove (no throttle). Throttling here
+        // would make local rendering laggy since moveObjects drives React state. To fix,
+        // split moveObjects into local-only state update vs. throttled broadcast side-effect.
+        const positions = dragStartPositionsRef.current;
+        if (positions.size > 0) {
+          const moves: { id: string; x: number; y: number }[] = [];
+          for (const [id, start] of positions) {
+            moves.push({ id, x: start.x + dx, y: start.y + dy });
+          }
+          onObjectsMove(moves);
+        }
       }
     },
     [
@@ -186,18 +328,47 @@ export function BoardCanvas({
       onCursorMove,
       isPanning,
       isDragging,
-      selectedId,
+      isSelecting,
+      isResizing,
+      selectedIds,
       dragStart,
-      dragObjStart,
       camera.zoom,
       onPan,
-      onObjectMove,
+      onObjectsMove,
+      onObjectResize,
+      resizeHandle,
+      resizeObjStart,
+      resizeObjId,
+      objects,
     ]
   );
 
   const handleMouseUp = useCallback(
     (e: React.MouseEvent) => {
-      if (!isDragging && !isPanning) {
+      if (isResizing && resizeObjStart && resizeHandle && resizeObjId) {
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (rect) {
+          const dx = (e.clientX - dragStart.x) / camera.zoom;
+          const dy = (e.clientY - dragStart.y) / camera.zoom;
+          const bounds = computeResizeBounds(resizeObjStart, resizeHandle, dx, dy);
+          onObjectResize(resizeObjId, bounds);
+        }
+        setIsResizing(false);
+        setResizeHandle(null);
+        setResizeObjStart(null);
+        setResizeObjId(null);
+        return;
+      }
+
+      if (isSelecting && selectionRect) {
+        const selected = objectsInRect(selectionRect, objects);
+        onSelectionBox(selected.map((o) => o.id));
+        setIsSelecting(false);
+        setSelectionRect(null);
+        return;
+      }
+
+      if (!isDragging && !isPanning && !isSelecting) {
         // Click on empty space with a creation tool
         const rect = canvasRef.current?.getBoundingClientRect();
         if (rect) {
@@ -207,17 +378,55 @@ export function BoardCanvas({
           onCanvasClick(world.x, world.y);
         }
       }
-      if (isDragging && selectedId) {
-        // Persist the final position
-        const obj = objects.find((o) => o.id === selectedId);
-        if (obj) {
-          onObjectMove(selectedId, obj.x, obj.y);
+
+      // Check for click-again-to-edit
+      if (clickedSelectedIdRef.current) {
+        const movedX = Math.abs(e.clientX - dragStart.x);
+        const movedY = Math.abs(e.clientY - dragStart.y);
+        if (movedX < CLICK_THRESHOLD && movedY < CLICK_THRESHOLD) {
+          onObjectClick(clickedSelectedIdRef.current);
         }
+        clickedSelectedIdRef.current = null;
+      }
+
+      if (isDragging && dragStartPositionsRef.current.size > 0) {
+        // Persist final positions computed from snapshot + total delta
+        const dx = (e.clientX - dragStart.x) / camera.zoom;
+        const dy = (e.clientY - dragStart.y) / camera.zoom;
+        const movedDistance = Math.abs(e.clientX - dragStart.x) + Math.abs(e.clientY - dragStart.y);
+        if (movedDistance > CLICK_THRESHOLD) {
+          const moves: { id: string; x: number; y: number }[] = [];
+          for (const [id, start] of dragStartPositionsRef.current) {
+            moves.push({ id, x: start.x + dx, y: start.y + dy });
+          }
+          onObjectsMove(moves, true);
+        }
+        dragStartPositionsRef.current = new Map();
       }
       setIsDragging(false);
       setIsPanning(false);
+      draggedObjIdRef.current = null;
     },
-    [isDragging, isPanning, selectedId, screenToWorld, onCanvasClick, objects, onObjectMove]
+    [
+      isDragging,
+      isPanning,
+      isSelecting,
+      isResizing,
+      selectedIds,
+      selectionRect,
+      screenToWorld,
+      onCanvasClick,
+      objects,
+      onObjectsMove,
+      onObjectClick,
+      onSelectionBox,
+      onObjectResize,
+      dragStart,
+      camera.zoom,
+      resizeHandle,
+      resizeObjStart,
+      resizeObjId,
+    ]
   );
 
   const handleDoubleClick = useCallback(
@@ -245,17 +454,31 @@ export function BoardCanvas({
     [onZoom]
   );
 
+  const cursorClass = isSpaceHeld
+    ? isPanning
+      ? "cursor-grabbing"
+      : "cursor-grab"
+    : "cursor-crosshair";
+
   return (
     <div ref={containerRef} className="w-full h-full relative">
       <canvas
         ref={canvasRef}
-        className="w-full h-full cursor-crosshair"
+        className={`w-full h-full ${cursorClass}`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={() => {
           setIsDragging(false);
           setIsPanning(false);
+          setIsSelecting(false);
+          setSelectionRect(null);
+          setIsResizing(false);
+          setResizeHandle(null);
+          setResizeObjStart(null);
+          setResizeObjId(null);
+          draggedObjIdRef.current = null;
+          dragStartPositionsRef.current = new Map();
         }}
         onDoubleClick={handleDoubleClick}
         onWheel={handleWheel}
@@ -265,6 +488,48 @@ export function BoardCanvas({
       />
     </div>
   );
+}
+
+// ---- Resize bounds computation ----
+
+function computeResizeBounds(
+  start: { x: number; y: number; width: number; height: number },
+  handle: HandlePosition,
+  dx: number,
+  dy: number
+): { x: number; y: number; width: number; height: number } {
+  let { x, y, width, height } = start;
+
+  if (handle.includes("w")) {
+    x = start.x + dx;
+    width = start.width - dx;
+  }
+  if (handle.includes("e")) {
+    width = start.width + dx;
+  }
+  if (handle.includes("n")) {
+    y = start.y + dy;
+    height = start.height - dy;
+  }
+  if (handle.includes("s")) {
+    height = start.height + dy;
+  }
+
+  // Enforce minimum size
+  if (width < MIN_OBJECT_SIZE) {
+    if (handle.includes("w")) {
+      x = start.x + start.width - MIN_OBJECT_SIZE;
+    }
+    width = MIN_OBJECT_SIZE;
+  }
+  if (height < MIN_OBJECT_SIZE) {
+    if (handle.includes("n")) {
+      y = start.y + start.height - MIN_OBJECT_SIZE;
+    }
+    height = MIN_OBJECT_SIZE;
+  }
+
+  return { x, y, width, height };
 }
 
 // ---- Rendering helpers ----
@@ -331,13 +596,15 @@ function drawObject(ctx: CanvasRenderingContext2D, obj: BoardObject, selected: b
       ctx.stroke();
     }
 
-    // Text
-    if (obj.content) {
-      ctx.fillStyle = "#1a1a1a";
+    // Text (or placeholder)
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- intentional: empty string should fall through to placeholder
+    const displayContent = obj.content || PLACEHOLDER_CONTENT[obj.type] || "";
+    if (displayContent) {
+      ctx.fillStyle = obj.content ? "#1a1a1a" : "#999999";
       ctx.font = "14px -apple-system, BlinkMacSystemFont, sans-serif";
       ctx.textAlign = "left";
       ctx.textBaseline = "top";
-      wrapText(ctx, obj.content, obj.x + 12, obj.y + 12, obj.width - 24, 18);
+      wrapText(ctx, displayContent, obj.x + 12, obj.y + 12, obj.width - 24, 18);
     }
   } else if (obj.type === "rectangle") {
     ctx.fillStyle = obj.color;
@@ -348,11 +615,14 @@ function drawObject(ctx: CanvasRenderingContext2D, obj: BoardObject, selected: b
       ctx.strokeRect(obj.x, obj.y, obj.width, obj.height);
     }
   } else {
-    ctx.fillStyle = "#1a1a1a";
+    // Text object
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- intentional: empty string should fall through to placeholder
+    const displayContent = obj.content || PLACEHOLDER_CONTENT[obj.type] || "Text";
+    ctx.fillStyle = obj.content ? "#1a1a1a" : "#999999";
     ctx.font = "18px -apple-system, BlinkMacSystemFont, sans-serif";
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
-    ctx.fillText(obj.content || "Text", obj.x, obj.y);
+    ctx.fillText(displayContent, obj.x, obj.y);
     if (selected) {
       ctx.strokeStyle = "#3b82f6";
       ctx.lineWidth = 1;
@@ -362,6 +632,34 @@ function drawObject(ctx: CanvasRenderingContext2D, obj: BoardObject, selected: b
     }
   }
 
+  ctx.restore();
+}
+
+function drawResizeHandles(ctx: CanvasRenderingContext2D, obj: BoardObject, zoom: number) {
+  const handles = getResizeHandles(obj);
+  // Constant screen-pixel size regardless of zoom
+  const size = HANDLE_SIZE / zoom;
+
+  ctx.save();
+  for (const handle of handles) {
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#3b82f6";
+    ctx.lineWidth = 2 / zoom;
+    ctx.fillRect(handle.x - size / 2, handle.y - size / 2, size, size);
+    ctx.strokeRect(handle.x - size / 2, handle.y - size / 2, size, size);
+  }
+  ctx.restore();
+}
+
+function drawSelectionRect(ctx: CanvasRenderingContext2D, rect: SelectionRect) {
+  ctx.save();
+  ctx.fillStyle = "rgba(59, 130, 246, 0.1)";
+  ctx.strokeStyle = "#3b82f6";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+  ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+  ctx.setLineDash([]);
   ctx.restore();
 }
 
