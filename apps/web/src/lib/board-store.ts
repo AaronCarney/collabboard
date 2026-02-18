@@ -7,7 +7,9 @@ import { v4 as uuidv4 } from "uuid";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { hashCode, shouldAcceptUpdate } from "@/lib/board-logic";
 
-const DEBUG_REALTIME = process.env.NEXT_PUBLIC_DEBUG_REALTIME === "true";
+const DEBUG_REALTIME =
+  process.env.NEXT_PUBLIC_DEBUG_REALTIME === "true" ||
+  (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"));
 
 export interface Camera {
   x: number;
@@ -71,13 +73,15 @@ export function useBoardStore(
   }, [boardId]);
 
   const subscribe = useCallback(() => {
+    if (DEBUG_REALTIME)
+      console.log("[Realtime] creating channel", `board:${boardId}`, "userId:", userId); // eslint-disable-line no-console
     const channel = realtimeSupabase.channel(`board:${boardId}`, {
       config: { presence: { key: userId } },
     });
 
     channel.on("presence", { event: "sync" }, () => {
-      if (DEBUG_REALTIME) console.log("[Realtime] presence sync"); // eslint-disable-line no-console
       const state = channel.presenceState<{ userName: string; color: string; onlineAt: string }>();
+      if (DEBUG_REALTIME) console.log("[Realtime] presence sync, users:", Object.keys(state)); // eslint-disable-line no-console
       const users: PresenceUser[] = [];
       for (const [uid, presences] of Object.entries(state)) {
         const first = presences[0];
@@ -129,11 +133,15 @@ export function useBoardStore(
       if (DEBUG_REALTIME) console.log("[Realtime] channel status:", status); // eslint-disable-line no-console
       if (status === "SUBSCRIBED") {
         subscribedRef.current = true;
-        void channel.track({
-          userName,
-          color: userColor,
-          onlineAt: new Date().toISOString(),
-        });
+        void channel
+          .track({
+            userName,
+            color: userColor,
+            onlineAt: new Date().toISOString(),
+          })
+          .then((resp) => {
+            if (DEBUG_REALTIME) console.log("[Realtime] track result:", resp); // eslint-disable-line no-console
+          });
       }
     });
 
