@@ -4,24 +4,30 @@
 
 ## In Progress
 
-<!-- Move tasks here when you start them -->
+### Post-MVP Features
+
+- [ ] AI Board Agent — 6+ command types (creation, manipulation, layout, complex)
+- [ ] Resize objects (drag handles)
+- [ ] Connectors (lines/arrows between objects)
+- [ ] Frames (grouping/organizing content areas)
+- [ ] Multi-select (shift-click, drag-to-select)
+- [ ] Copy/paste, duplicate
+- [ ] Color picker for objects
+- [ ] Rotate objects (UI)
+
+### Submission Deliverables
+
+- [ ] AI Development Log (1-page)
+- [ ] AI Cost Analysis (dev spend + projections)
+- [ ] Demo Video (3-5 min)
+- [ ] Social Post (X or LinkedIn)
 
 ## Up Next
 
-### MVP Features (implement in order)
+### Production Hardening
 
-- [ ] Canvas board object rendering (`docs/specs/canvas-board-object-rendering.md`)
-- [ ] Real-time cursor sync (spec TBD — create with `/plan cursor-sync`)
-- [ ] Multi-user object sync (spec TBD — create with `/plan object-sync`)
-- [ ] Conflict resolution (spec TBD — create with `/plan conflict-resolution`)
-- [ ] Authentication integration with Clerk (spec TBD)
-- [ ] Supabase board persistence (spec TBD)
-- [ ] Board creation and sharing via link (spec TBD)
-
-### AI Features (post-MVP core)
-
-- [ ] AI agent — `/summarize`, `/brainstorm` commands (spec TBD)
-- [ ] AI agent — `/create`, `/categorize`, `/label`, `/rewrite` commands (spec TBD)
+- [ ] E2E tests (Playwright)
+- [ ] Verify deployment end-to-end (Supabase env vars resolved)
 
 ## Done
 
@@ -32,4 +38,13 @@
 - [x] Phase 4: CI/CD (GitHub Actions, pre-commit hooks, secret scanner)
 - [x] Phase 5: MCP servers and skills
 - [x] Phase 6: Conductor setup (product.md, tech-stack.md, workflow.md, fallback templates)
-- [x] Canvas board object rendering — spec and plan created
+- [x] Canvas board object rendering (spec, plan, implementation, 58 tests)
+- [x] Real-time cursor sync (Supabase Realtime broadcast)
+- [x] Multi-user object sync (Supabase Realtime broadcast)
+- [x] Conflict resolution (LWW + version numbers)
+- [x] Authentication integration with Clerk
+- [x] Supabase board persistence
+- [x] Board creation and sharing via link
+- [x] Pre-Search research documents
+- [x] Vercel deployment (live)
+- [x] Turbo env var declaration fix
