@@ -120,15 +120,24 @@ export function useBoardStore(
       setObjects((prev) => prev.filter((o) => o.id !== p.id));
     });
 
-    void channel.subscribe((status: string) => {
+    /* eslint-disable no-console */
+    void channel.subscribe((status: string, err?: Error) => {
+      console.log("[Realtime] channel status:", status, err ?? "");
       if (status === "SUBSCRIBED") {
         void channel.track({
           userName,
           color: userColor,
           onlineAt: new Date().toISOString(),
         });
+      } else if (status === "CHANNEL_ERROR") {
+        console.error("[Realtime] channel error — auth or config issue", err);
+      } else if (status === "TIMED_OUT") {
+        console.error("[Realtime] channel join timed out");
+      } else if (status === "CLOSED") {
+        console.warn("[Realtime] channel closed");
       }
     });
+    /* eslint-enable no-console */
 
     channelRef.current = channel;
     return () => {
