@@ -2,6 +2,10 @@
 -- CollabBoard MVP — Supabase Schema
 -- Run this in Supabase Dashboard → SQL Editor
 -- ============================================================
+-- Requires Clerk JWT template "supabase" with HS256 signing
+-- using the Supabase JWT Secret. The JWT must include:
+--   "sub": "{{user.id}}", "aud": "authenticated", "role": "authenticated"
+-- ============================================================
 
 -- Enable UUID extension
 create extension if not exists "uuid-ossp";
@@ -19,25 +23,22 @@ create table public.boards (
 
 alter table public.boards enable row level security;
 
--- Anyone authenticated can read boards they created
+-- RLS policies using auth.jwt() to read Clerk user ID from "sub" claim
 create policy "Users can view own boards"
   on public.boards for select
-  using (created_by = current_setting('request.jwt.claims', true)::json->>'sub');
+  using (created_by = (auth.jwt()->>'sub'));
 
--- Anyone authenticated can insert boards
 create policy "Users can create boards"
   on public.boards for insert
-  with check (created_by = current_setting('request.jwt.claims', true)::json->>'sub');
+  with check (created_by = (auth.jwt()->>'sub'));
 
--- Anyone authenticated can update own boards
 create policy "Users can update own boards"
   on public.boards for update
-  using (created_by = current_setting('request.jwt.claims', true)::json->>'sub');
+  using (created_by = (auth.jwt()->>'sub'));
 
--- Anyone authenticated can delete own boards
 create policy "Users can delete own boards"
   on public.boards for delete
-  using (created_by = current_setting('request.jwt.claims', true)::json->>'sub');
+  using (created_by = (auth.jwt()->>'sub'));
 
 -- ============================================================
 -- Board objects table

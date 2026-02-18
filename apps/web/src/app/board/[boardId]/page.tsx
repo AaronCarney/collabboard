@@ -1,26 +1,34 @@
-'use client';
+"use client";
 
-import { useEffect, useCallback, useRef } from 'react';
-import { useUser } from '@clerk/nextjs';
-import { useParams, useRouter } from 'next/navigation';
-import { useBoardStore } from '@/lib/board-store';
-import { BoardCanvas } from '@/components/board/BoardCanvas';
-import { ToolBar } from '@/components/board/ToolBar';
-import { PresenceBar } from '@/components/board/PresenceBar';
-import { TextEditor } from '@/components/board/TextEditor';
+import { useEffect, useCallback, useRef, useMemo } from "react";
+import { useUser, useAuth } from "@clerk/nextjs";
+import { useParams, useRouter } from "next/navigation";
+import { useBoardStore } from "@/lib/board-store";
+import { createClerkSupabaseClient } from "@/lib/supabase";
+import { BoardCanvas } from "@/components/board/BoardCanvas";
+import { ToolBar } from "@/components/board/ToolBar";
+import { PresenceBar } from "@/components/board/PresenceBar";
+import { TextEditor } from "@/components/board/TextEditor";
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export default function BoardPage() {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const params = useParams();
   const router = useRouter();
   const boardId = params.boardId as string;
   const initRef = useRef(false);
 
+  const supabase = useMemo(
+    () => createClerkSupabaseClient(() => getToken({ template: "supabase" })),
+    [getToken]
+  );
+
   const store = useBoardStore(
     boardId,
-    user?.id ?? '',
-    user?.fullName ?? user?.username ?? 'Anonymous'
+    user?.id ?? "",
+    user?.fullName ?? user?.username ?? "Anonymous",
+    supabase
   );
 
   useEffect(() => {
@@ -29,8 +37,7 @@ export default function BoardPage() {
     void store.loadObjects();
     const cleanup = store.subscribe();
     return cleanup;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user]);  
 
   const lastCursorRef = useRef(0);
   const handleCursorMove = useCallback(
@@ -46,9 +53,9 @@ export default function BoardPage() {
 
   const handleCanvasClick = useCallback(
     (wx: number, wy: number) => {
-      if (store.activeTool !== 'select') {
+      if (store.activeTool !== "select") {
         void store.createObject(store.activeTool, wx, wy);
-        store.setActiveTool('select');
+        store.setActiveTool("select");
       }
     },
     [store.activeTool, store.createObject, store.setActiveTool]
@@ -64,7 +71,7 @@ export default function BoardPage() {
   const handleDoubleClick = useCallback(
     (id: string) => {
       const obj = store.objects.find((o) => o.id === id);
-      if (obj && (obj.type === 'sticky_note' || obj.type === 'text')) {
+      if (obj && (obj.type === "sticky_note" || obj.type === "text")) {
         store.setEditingId(id);
       }
     },
@@ -114,21 +121,21 @@ export default function BoardPage() {
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (store.editingId) return;
-      if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (e.key === "Delete" || e.key === "Backspace") {
         handleDelete();
       }
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         store.setSelectedId(null);
-        store.setActiveTool('select');
+        store.setActiveTool("select");
       }
-      if (e.key === 'v' || e.key === '1') store.setActiveTool('select');
-      if (e.key === 's' || e.key === '2') store.setActiveTool('sticky_note');
-      if (e.key === 'r' || e.key === '3') store.setActiveTool('rectangle');
-      if (e.key === 'c' || e.key === '4') store.setActiveTool('circle');
-      if (e.key === 't' || e.key === '5') store.setActiveTool('text');
+      if (e.key === "v" || e.key === "1") store.setActiveTool("select");
+      if (e.key === "s" || e.key === "2") store.setActiveTool("sticky_note");
+      if (e.key === "r" || e.key === "3") store.setActiveTool("rectangle");
+      if (e.key === "c" || e.key === "4") store.setActiveTool("circle");
+      if (e.key === "t" || e.key === "5") store.setActiveTool("text");
     };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    window.addEventListener("keydown", handleKey);
+    return () => { window.removeEventListener("keydown", handleKey); };
   }, [store.editingId, handleDelete, store.setSelectedId, store.setActiveTool]);
 
   const editingObject = store.editingId
@@ -147,7 +154,7 @@ export default function BoardPage() {
     <div className="h-screen w-screen overflow-hidden relative bg-gray-100">
       <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
         <button
-          onClick={() => router.push('/dashboard')}
+          onClick={() => { router.push("/dashboard"); }}
           className="bg-white rounded-lg px-3 py-1.5 shadow-sm border text-sm font-medium hover:bg-gray-50"
         >
           &larr; Back
@@ -187,7 +194,7 @@ export default function BoardPage() {
           object={editingObject}
           camera={store.camera}
           onSave={handleTextSave}
-          onClose={() => store.setEditingId(null)}
+          onClose={() => { store.setEditingId(null); }}
         />
       )}
     </div>

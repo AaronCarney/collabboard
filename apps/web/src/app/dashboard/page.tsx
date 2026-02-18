@@ -1,17 +1,23 @@
 "use client";
 
-import { useUser, UserButton } from "@clerk/nextjs";
-import { useEffect, useState, useCallback } from "react";
+import { useUser, useAuth, UserButton } from "@clerk/nextjs";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { createClerkSupabaseClient } from "@/lib/supabase";
 import type { Board } from "@/types/board";
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export default function DashboardPage() {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const router = useRouter();
   const [boards, setBoards] = useState<Board[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const supabase = useMemo(
+    () => createClerkSupabaseClient(() => getToken({ template: "supabase" })),
+    [getToken]
+  );
 
   const loadBoards = useCallback(async () => {
     if (!user) return;
@@ -22,7 +28,7 @@ export default function DashboardPage() {
       .order("updated_at", { ascending: false });
     setBoards(data ? (data as Board[]) : []);
     setLoading(false);
-  }, [user]);
+  }, [user, supabase]);
 
   useEffect(() => {
     if (!user) return;
@@ -39,7 +45,7 @@ export default function DashboardPage() {
     if (result.data && !result.error) {
       router.push(`/board/${(result.data as Board).id}`);
     }
-  }, [user, router]);
+  }, [user, router, supabase]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -72,7 +78,9 @@ export default function DashboardPage() {
             {boards.map((board) => (
               <button
                 key={board.id}
-                onClick={() => { router.push(`/board/${board.id}`); }}
+                onClick={() => {
+                  router.push(`/board/${board.id}`);
+                }}
                 className="bg-white border rounded-lg p-4 text-left hover:shadow-md transition"
               >
                 <h3 className="font-medium truncate">{board.name}</h3>

@@ -3,8 +3,8 @@
 import { useState, useCallback, useRef } from "react";
 import type { BoardObject, ObjectType, CursorPosition, PresenceUser } from "@/types/board";
 import { OBJECT_DEFAULTS, USER_COLORS } from "@/types/board";
-import { supabase } from "@/lib/supabase";
 import { v4 as uuidv4 } from "uuid";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { hashCode, shouldAcceptUpdate } from "@/lib/board-logic";
 
 export interface Camera {
@@ -44,7 +44,12 @@ interface DeletePayload {
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function useBoardStore(boardId: string, userId: string, userName: string) {
+export function useBoardStore(
+  boardId: string,
+  userId: string,
+  userName: string,
+  supabase: SupabaseClient
+) {
   const [objects, setObjects] = useState<BoardObject[]>([]);
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 });
   const [selectedId, setSelectedId] = useState<string | null>(null);

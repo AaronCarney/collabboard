@@ -71,22 +71,21 @@ const {
   };
 });
 
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-vi.mock("@/lib/supabase", () => ({
-  supabase: {
-    from: (...args: unknown[]) => mockFrom(...args),
-    channel: (...args: unknown[]) => mockChannel(...args),
-    removeChannel: (...args: unknown[]) => mockRemoveChannel(...args),
-  },
-}));
-/* eslint-enable @typescript-eslint/no-unsafe-return */
-
 vi.mock("uuid", () => ({
   v4: vi.fn(() => "mock-uuid-1234"),
 }));
 
 // Import after mocks are set up
 import { useBoardStore } from "../board-store";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+const mockSupabase = {
+  from: (...args: unknown[]) => mockFrom(...args),
+  channel: (...args: unknown[]) => mockChannel(...args),
+  removeChannel: (...args: unknown[]) => mockRemoveChannel(...args),
+} as unknown as SupabaseClient;
+/* eslint-enable @typescript-eslint/no-unsafe-return */
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -101,35 +100,43 @@ beforeEach(() => {
 // ─────────────────────────────────────────────────────────────
 describe("useBoardStore — initial state", () => {
   it("starts with empty objects", () => {
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
     expect(result.current.objects).toEqual([]);
   });
 
   it("starts with default camera at origin zoom 1", () => {
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
     expect(result.current.camera).toEqual({ x: 0, y: 0, zoom: 1 });
   });
 
   it("starts with select tool active", () => {
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
     expect(result.current.activeTool).toBe("select");
   });
 
   it("starts with nothing selected", () => {
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
     expect(result.current.selectedId).toBeNull();
   });
 
   it("assigns a deterministic user color based on userId", () => {
-    const { result: r1 } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
-    const { result: r2 } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result: r1 } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase)
+    );
+    const { result: r2 } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase)
+    );
     expect(r1.current.userColor).toBe(r2.current.userColor);
     expect(r1.current.userColor).toMatch(/^#[0-9A-Fa-f]{6}$/);
   });
 
   it("assigns different colors to different users", () => {
-    const { result: r1 } = renderHook(() => useBoardStore("board-1", "user-aaa", "Alice"));
-    const { result: r2 } = renderHook(() => useBoardStore("board-1", "user-zzz", "Bob"));
+    const { result: r1 } = renderHook(() =>
+      useBoardStore("board-1", "user-aaa", "Alice", mockSupabase)
+    );
+    const { result: r2 } = renderHook(() =>
+      useBoardStore("board-1", "user-zzz", "Bob", mockSupabase)
+    );
     // Not guaranteed but very likely with different user IDs
     // If this flakes, the hash function has poor distribution
     expect(r1.current.userColor).not.toBe(r2.current.userColor);
@@ -141,7 +148,7 @@ describe("useBoardStore — initial state", () => {
 // ─────────────────────────────────────────────────────────────
 describe("useBoardStore — createObject", () => {
   it("creates a sticky note with correct defaults", async () => {
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
 
     await act(async () => {
       await result.current.createObject("sticky_note", 50, 75);
@@ -162,7 +169,7 @@ describe("useBoardStore — createObject", () => {
   });
 
   it("creates a circle with correct defaults", async () => {
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
 
     await act(async () => {
       await result.current.createObject("circle", 200, 300);
@@ -176,7 +183,7 @@ describe("useBoardStore — createObject", () => {
   });
 
   it("creates a rectangle with correct defaults", async () => {
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
 
     await act(async () => {
       await result.current.createObject("rectangle", 0, 0);
@@ -190,7 +197,7 @@ describe("useBoardStore — createObject", () => {
   });
 
   it("creates a text object with correct defaults", async () => {
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
 
     await act(async () => {
       await result.current.createObject("text", 10, 20);
@@ -204,7 +211,7 @@ describe("useBoardStore — createObject", () => {
   });
 
   it("persists to Supabase", async () => {
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
 
     await act(async () => {
       await result.current.createObject("sticky_note", 0, 0);
@@ -221,7 +228,7 @@ describe("useBoardStore — createObject", () => {
   });
 
   it("adds multiple objects to the array", async () => {
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
 
     await act(async () => {
       await result.current.createObject("sticky_note", 0, 0);
@@ -241,7 +248,7 @@ describe("useBoardStore — createObject", () => {
 // ─────────────────────────────────────────────────────────────
 describe("useBoardStore — updateObject", () => {
   it("increments version on update", async () => {
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
 
     await act(async () => {
       await result.current.createObject("sticky_note", 0, 0);
@@ -257,7 +264,7 @@ describe("useBoardStore — updateObject", () => {
   });
 
   it("applies the changes to the correct object", async () => {
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
 
     await act(async () => {
       await result.current.createObject("sticky_note", 0, 0);
@@ -275,7 +282,7 @@ describe("useBoardStore — updateObject", () => {
   });
 
   it("updates the updated_at timestamp", async () => {
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
 
     await act(async () => {
       await result.current.createObject("sticky_note", 0, 0);
@@ -299,7 +306,7 @@ describe("useBoardStore — updateObject", () => {
       .mockReturnValueOnce("sticky-id")
       .mockReturnValueOnce("rect-id");
 
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
 
     await act(async () => {
       await result.current.createObject("sticky_note", 0, 0);
@@ -323,7 +330,7 @@ describe("useBoardStore — updateObject", () => {
 // ─────────────────────────────────────────────────────────────
 describe("useBoardStore — deleteObject", () => {
   it("removes the object from state", async () => {
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
 
     await act(async () => {
       await result.current.createObject("sticky_note", 0, 0);
@@ -339,7 +346,7 @@ describe("useBoardStore — deleteObject", () => {
   });
 
   it("only removes the targeted object", async () => {
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
 
     // Need unique IDs — mock uuid to return different values
     const { v4 } = await import("uuid");
@@ -361,7 +368,7 @@ describe("useBoardStore — deleteObject", () => {
   });
 
   it("deletes from Supabase", async () => {
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
 
     await act(async () => {
       await result.current.createObject("sticky_note", 0, 0);
@@ -404,7 +411,7 @@ describe("useBoardStore — loadObjects", () => {
 
     mockEq.mockResolvedValueOnce({ data: mockData, error: null });
 
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
 
     await act(async () => {
       await result.current.loadObjects();
@@ -418,7 +425,7 @@ describe("useBoardStore — loadObjects", () => {
   it("does not crash when Supabase returns null data", async () => {
     mockEq.mockResolvedValueOnce({ data: null, error: { message: "fail" } });
 
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
 
     await act(async () => {
       await result.current.loadObjects();
@@ -434,7 +441,7 @@ describe("useBoardStore — loadObjects", () => {
 // ─────────────────────────────────────────────────────────────
 describe("useBoardStore — subscribe", () => {
   it("creates a channel with the board ID", () => {
-    const { result } = renderHook(() => useBoardStore("board-99", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-99", "user-1", "Alice", mockSupabase));
 
     act(() => {
       result.current.subscribe();
@@ -444,7 +451,7 @@ describe("useBoardStore — subscribe", () => {
   });
 
   it("returns a cleanup function that removes the channel", () => {
-    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice"));
+    const { result } = renderHook(() => useBoardStore("board-1", "user-1", "Alice", mockSupabase));
 
     let cleanup: (() => void) | undefined;
     act(() => {
