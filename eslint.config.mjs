@@ -52,6 +52,7 @@ export default tseslint.config(
       "@typescript-eslint/no-inferrable-types": "off",
       "@typescript-eslint/dot-notation": "off",
       "@typescript-eslint/explicit-module-boundary-types": "off",
+      "@typescript-eslint/unbound-method": "off",
       "no-console": "off",
     },
   },

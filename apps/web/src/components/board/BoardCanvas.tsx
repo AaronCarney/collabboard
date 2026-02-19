@@ -2,7 +2,6 @@
 
 import { useRef, useEffect, useCallback, useState } from "react";
 import type { BoardObject, CursorPosition, ObjectType } from "@/types/board";
-import { PLACEHOLDER_CONTENT } from "@/types/board";
 import type { Camera } from "@/lib/board-store";
 import type { HandlePosition, SelectionRect } from "@/lib/board-logic";
 import {
@@ -12,6 +11,8 @@ import {
   getResizeHandles,
   hitTestHandle,
 } from "@/lib/board-logic";
+import { hasRenderer, getRenderer } from "@/components/board/renderers/renderer-registry";
+import "@/components/board/renderers/init";
 
 interface BoardCanvasProps {
   objects: BoardObject[];
@@ -120,10 +121,33 @@ export function BoardCanvas({
     // Grid
     drawGrid(ctx, camera, w, h);
 
-    // Objects
+    // Compute viewport bounds in world space for culling
+    const vpLeft = -camera.x / camera.zoom;
+    const vpTop = -camera.y / camera.zoom;
+    const vpRight = vpLeft + w / camera.zoom;
+    const vpBottom = vpTop + h / camera.zoom;
+    const canCull = w > 0 && h > 0;
+
+    // Objects — use registry-based rendering with viewport culling
     for (const obj of objects) {
+      // Viewport culling: skip objects entirely outside the viewport
+      if (
+        canCull &&
+        (obj.x + obj.width < vpLeft ||
+          obj.x > vpRight ||
+          obj.y + obj.height < vpTop ||
+          obj.y > vpBottom)
+      ) {
+        continue;
+      }
+
       const isSelected = selectedIds.includes(obj.id);
-      drawObject(ctx, obj, isSelected);
+      if (hasRenderer(obj.type)) {
+        const renderer = getRenderer(obj.type);
+        renderer.draw(ctx, obj, isSelected);
+      } else {
+        drawObjectFallback(ctx, obj, isSelected);
+      }
       if (isSelected) {
         drawResizeHandles(ctx, obj, camera.zoom);
       }
@@ -556,82 +580,16 @@ function drawGrid(ctx: CanvasRenderingContext2D, camera: Camera, w: number, h: n
   ctx.stroke();
 }
 
-function drawObject(ctx: CanvasRenderingContext2D, obj: BoardObject, selected: boolean) {
+/** Fallback renderer for object types without a registered renderer. */
+function drawObjectFallback(ctx: CanvasRenderingContext2D, obj: BoardObject, selected: boolean) {
   ctx.save();
-
-  if (obj.type === "circle") {
-    ctx.beginPath();
-    ctx.ellipse(
-      obj.x + obj.width / 2,
-      obj.y + obj.height / 2,
-      obj.width / 2,
-      obj.height / 2,
-      0,
-      0,
-      Math.PI * 2
-    );
-    ctx.fillStyle = obj.color;
-    ctx.fill();
-    if (selected) {
-      ctx.strokeStyle = "#3b82f6";
-      ctx.lineWidth = 3;
-      ctx.stroke();
-    }
-  } else if (obj.type === "sticky_note") {
-    // Shadow
-    ctx.shadowColor = "rgba(0,0,0,0.1)";
-    ctx.shadowBlur = 8;
-    ctx.shadowOffsetY = 2;
-
-    ctx.fillStyle = obj.color;
-    roundRect(ctx, obj.x, obj.y, obj.width, obj.height, 8);
-    ctx.fill();
-
-    ctx.shadowColor = "transparent";
-
-    if (selected) {
-      ctx.strokeStyle = "#3b82f6";
-      ctx.lineWidth = 3;
-      roundRect(ctx, obj.x, obj.y, obj.width, obj.height, 8);
-      ctx.stroke();
-    }
-
-    // Text (or placeholder)
-    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- intentional: empty string should fall through to placeholder
-    const displayContent = obj.content || PLACEHOLDER_CONTENT[obj.type] || "";
-    if (displayContent) {
-      ctx.fillStyle = obj.content ? "#1a1a1a" : "#999999";
-      ctx.font = "14px -apple-system, BlinkMacSystemFont, sans-serif";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "top";
-      wrapText(ctx, displayContent, obj.x + 12, obj.y + 12, obj.width - 24, 18);
-    }
-  } else if (obj.type === "rectangle") {
-    ctx.fillStyle = obj.color;
-    ctx.fillRect(obj.x, obj.y, obj.width, obj.height);
-    if (selected) {
-      ctx.strokeStyle = "#3b82f6";
-      ctx.lineWidth = 3;
-      ctx.strokeRect(obj.x, obj.y, obj.width, obj.height);
-    }
-  } else {
-    // Text object
-    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- intentional: empty string should fall through to placeholder
-    const displayContent = obj.content || PLACEHOLDER_CONTENT[obj.type] || "Text";
-    ctx.fillStyle = obj.content ? "#1a1a1a" : "#999999";
-    ctx.font = "18px -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    ctx.fillText(displayContent, obj.x, obj.y);
-    if (selected) {
-      ctx.strokeStyle = "#3b82f6";
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 4]);
-      ctx.strokeRect(obj.x - 4, obj.y - 4, obj.width + 8, obj.height + 8);
-      ctx.setLineDash([]);
-    }
+  ctx.fillStyle = obj.color || "#ccc";
+  ctx.fillRect(obj.x, obj.y, obj.width, obj.height);
+  if (selected) {
+    ctx.strokeStyle = "#3b82f6";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(obj.x, obj.y, obj.width, obj.height);
   }
-
   ctx.restore();
 }
 
@@ -709,30 +667,4 @@ function roundRect(
   ctx.arcTo(x, y + h, x, y, r);
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
-}
-
-function wrapText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  x: number,
-  y: number,
-  maxWidth: number,
-  lineHeight: number
-) {
-  const words = text.split(" ");
-  let line = "";
-  let currentY = y;
-
-  for (const word of words) {
-    const testLine = line + word + " ";
-    const metrics = ctx.measureText(testLine);
-    if (metrics.width > maxWidth && line) {
-      ctx.fillText(line.trim(), x, currentY);
-      line = word + " ";
-      currentY += lineHeight;
-    } else {
-      line = testLine;
-    }
-  }
-  ctx.fillText(line.trim(), x, currentY);
 }

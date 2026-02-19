@@ -278,7 +278,12 @@ describe("useBoardStore — createObject", () => {
     );
   });
 
-  it("adds multiple objects to the array", async () => {
+  it("adds multiple objects to the store", async () => {
+    const { v4 } = await import("uuid");
+    (v4 as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce("uuid-sticky")
+      .mockReturnValueOnce("uuid-rect");
+
     const { result } = renderHook(() =>
       useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
     );
@@ -291,8 +296,9 @@ describe("useBoardStore — createObject", () => {
     });
 
     expect(result.current.objects).toHaveLength(2);
-    expect(result.current.objects[0].type).toBe("sticky_note");
-    expect(result.current.objects[1].type).toBe("rectangle");
+    const types = result.current.objects.map((o) => o.type);
+    expect(types).toContain("sticky_note");
+    expect(types).toContain("rectangle");
   });
 });
 
@@ -459,8 +465,8 @@ describe("useBoardStore — loadObjects", () => {
   it("fetches objects from Supabase filtered by boardId", async () => {
     const mockData: BoardObject[] = [
       {
-        id: "obj-1",
-        board_id: "board-1",
+        id: "11111111-1111-1111-1111-111111111111",
+        board_id: "22222222-2222-2222-2222-222222222222",
         type: "sticky_note",
         x: 10,
         y: 20,
@@ -473,7 +479,9 @@ describe("useBoardStore — loadObjects", () => {
         created_by: "user-1",
         created_at: "2026-01-01T00:00:00Z",
         updated_at: "2026-01-01T00:00:00Z",
-      },
+        parent_frame_id: null,
+        properties: {},
+      } as BoardObject,
     ];
 
     mockEq.mockResolvedValueOnce({ data: mockData, error: null });

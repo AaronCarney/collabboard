@@ -16,8 +16,14 @@
     "clean": "rm -rf .next dist *.tsbuildinfo"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.45",
+    "@ai-sdk/google": "^3.0.29",
+    "@ai-sdk/openai": "^3.0.30",
     "@clerk/nextjs": "^6",
+    "@collabboard/db": "workspace:*",
+    "@collabboard/shared": "workspace:*",
     "@supabase/supabase-js": "^2",
+    "ai": "^6.0.91",
     "autoprefixer": "^10.4.24",
     "clsx": "^2.1.1",
     "next": "14.2.29",
