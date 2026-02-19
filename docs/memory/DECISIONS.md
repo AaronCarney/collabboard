@@ -229,3 +229,33 @@ Append-only log. IDs are permanent across archival. Format: context, options, ch
 2. **Remove references:** Clean up docs and env to reflect reality. The scaffold can be recreated if needed.
    **Choice:** Option 2 — Remove references from docs and .env.example.
    **Rationale:** Stale references to unused infrastructure confuse agents and developers. The `apps/realtime/` directory can stay as an empty scaffold (removing it is a separate cleanup), but documentation should reflect what's actually in use. Cleaned up: `architecture.md` (stack table, monorepo diagram, invariants #6/#7), `tech-stack.md` (hosting row), `.env.example` (Cloudflare vars removed).
+
+---
+
+## D017 — AI Provider: GPT-4o-mini (via @ai-sdk/openai)
+
+**Date:** 2026-02-19
+**Category:** Technology
+**Context:** Phase 4A provider evaluation. Needed to select an LLM for the AI agent feature (6+ command types, <2s latency, structured output, tool calling).
+**Options:**
+
+1. **GPT-4o-mini:** $0.15/$0.60 per 1M tokens, ~520ms avg, 128K context, mature tool calling. ~$30/month at 50K calls.
+2. **Claude Haiku 4.5:** $1/$5 per 1M tokens, ~680ms avg, 200K context, superior agentic reliability. ~$225/month at 50K calls.
+3. **Gemini 2.0 Flash:** $0.10/$0.40 per 1M tokens, ~450ms avg, 1M context, newest. ~$92/month at 50K calls. Less mature Vercel AI SDK integration.
+   **Choice:** Option 1 — GPT-4o-mini.
+   **Rationale:** Cheapest at scale (7.5x cheaper than Haiku), fastest mature option, best-tested with Vercel AI SDK. Template bypass for complex patterns (SWOT, Kanban) eliminates LLM entirely for those commands (~100ms). Vercel AI SDK makes provider swap trivial (~3 lines) if accuracy proves insufficient — switch to Haiku as fallback.
+
+---
+
+## D018 — Observability: LiteLLM Proxy + Self-Hosted LangFuse
+
+**Date:** 2026-02-19
+**Category:** Technology
+**Context:** Need observability into both CollabBoard's AI commands (Phase 4C) and the developer's own Claude Code CLI usage.
+**Options:**
+
+1. **LangSmith cloud only:** Managed, easy setup. But: data leaves your infrastructure, limited to LLM traces only.
+2. **LangFuse cloud only:** Managed, cost tracking built-in. Same data ownership concern.
+3. **Self-hosted LangFuse + LiteLLM proxy + LangSmith cloud (optional):** Full data ownership, API proxy captures all calls transparently, hooks capture agent-level events. Docker Compose for easy management.
+   **Choice:** Option 3 — Self-hosted LangFuse + LiteLLM proxy.
+   **Rationale:** LiteLLM proxy intercepts all API calls without code changes to Claude Code (just set ANTHROPIC_BASE_URL). Self-hosted LangFuse provides full data ownership. LangSmith as optional cloud complement for prompt iteration. Graceful fallback — if proxy is down, everything still works. Bonus: Claude Code has native OTel support that feeds directly into the collector.

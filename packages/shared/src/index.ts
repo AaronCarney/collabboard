@@ -33,3 +33,19 @@ export {
 } from "./schemas/board-objects";
 
 export type { BoardObjectZod } from "./schemas/board-objects";
+
+export { z } from "zod";
+
+export {
+  accessLevelSchema,
+  boardShareSchema,
+  createShareRequestSchema,
+  deleteShareRequestSchema,
+} from "./schemas/board-shares";
+
+export type {
+  AccessLevel,
+  BoardShare,
+  CreateShareRequest,
+  DeleteShareRequest,
+} from "./schemas/board-shares";

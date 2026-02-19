@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useMemo } from "react";
 import type { BoardObject, ObjectType, CursorPosition, PresenceUser } from "@/types/board";
+import type { ToolType } from "@collabboard/shared";
 import { OBJECT_DEFAULTS, USER_COLORS } from "@/types/board";
 import { boardObjectSchema } from "@collabboard/shared";
 import { v4 as uuidv4 } from "uuid";
@@ -96,7 +97,7 @@ export function useBoardStore(
   const objects = useMemo(() => Array.from(objectsMap.values()), [objectsMap]);
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [activeTool, setActiveTool] = useState<ObjectType | "select">("select");
+  const [activeTool, setActiveTool] = useState<ToolType>("select");
   const [cursors, setCursors] = useState<Map<string, CursorPosition>>(new Map());
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);

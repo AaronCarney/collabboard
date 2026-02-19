@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useRef } from 'react';
-import type { BoardObject } from '@/types/board';
-import type { Camera } from '@/lib/board-store';
+import { useEffect, useRef } from "react";
+import type { BoardObject } from "@/types/board";
+import type { Camera } from "@/lib/board-store";
 
 interface TextEditorProps {
   object: BoardObject;
@@ -11,7 +11,12 @@ interface TextEditorProps {
   onClose: () => void;
 }
 
-export function TextEditor({ object, camera, onSave, onClose }: TextEditorProps) {
+export function TextEditor({
+  object,
+  camera,
+  onSave,
+  onClose,
+}: TextEditorProps): React.JSX.Element {
   const ref = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -35,10 +40,10 @@ export function TextEditor({ object, camera, onSave, onClose }: TextEditorProps)
         onClose();
       }}
       onKeyDown={(e) => {
-        if (e.key === 'Escape') {
+        if (e.key === "Escape") {
           onClose();
         }
-        if (e.key === 'Enter' && !e.shiftKey) {
+        if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault();
           onSave(object.id, e.currentTarget.value);
           onClose();
@@ -51,7 +56,7 @@ export function TextEditor({ object, camera, onSave, onClose }: TextEditorProps)
         width,
         height: Math.max(height, 60),
         fontSize: `${String(14 * camera.zoom)}px`,
-        fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
+        fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
       }}
     />
   );

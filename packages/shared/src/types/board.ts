@@ -28,6 +28,9 @@ interface BaseObject {
   rotation: number;
   content: string;
   color: string;
+  opacity?: number;
+  fontSize?: number;
+  fontFamily?: string;
   version: number;
   created_by: string;
   created_at: string;
@@ -127,13 +130,69 @@ export const PLACEHOLDER_CONTENT: Partial<Record<ObjectType, string>> = {
 };
 
 export const OBJECT_DEFAULTS: Record<ObjectType, Partial<BoardObject>> = {
-  sticky_note: { width: 200, height: 200, color: "#FFEB3B", content: "" },
-  rectangle: { width: 200, height: 150, color: "#42A5F5", content: "" },
-  circle: { width: 150, height: 150, color: "#66BB6A", content: "" },
-  text: { width: 200, height: 40, color: "transparent", content: "" },
-  line: { width: 0, height: 0, color: "#333333", content: "" },
-  connector: { width: 0, height: 0, color: "#333333", content: "" },
-  frame: { width: 400, height: 300, color: "#E0E0E0", content: "" },
+  sticky_note: {
+    width: 200,
+    height: 200,
+    color: "#FFEB3B",
+    content: "",
+    opacity: 1,
+    fontSize: 16,
+    fontFamily: "sans-serif",
+  },
+  rectangle: {
+    width: 200,
+    height: 150,
+    color: "#42A5F5",
+    content: "",
+    opacity: 1,
+    fontSize: 16,
+    fontFamily: "sans-serif",
+  },
+  circle: {
+    width: 150,
+    height: 150,
+    color: "#66BB6A",
+    content: "",
+    opacity: 1,
+    fontSize: 16,
+    fontFamily: "sans-serif",
+  },
+  text: {
+    width: 200,
+    height: 40,
+    color: "transparent",
+    content: "",
+    opacity: 1,
+    fontSize: 16,
+    fontFamily: "sans-serif",
+  },
+  line: {
+    width: 0,
+    height: 0,
+    color: "#333333",
+    content: "",
+    opacity: 1,
+    fontSize: 16,
+    fontFamily: "sans-serif",
+  },
+  connector: {
+    width: 0,
+    height: 0,
+    color: "#333333",
+    content: "",
+    opacity: 1,
+    fontSize: 16,
+    fontFamily: "sans-serif",
+  },
+  frame: {
+    width: 400,
+    height: 300,
+    color: "#E0E0E0",
+    content: "",
+    opacity: 1,
+    fontSize: 16,
+    fontFamily: "sans-serif",
+  },
 };
 
 export const USER_COLORS = [

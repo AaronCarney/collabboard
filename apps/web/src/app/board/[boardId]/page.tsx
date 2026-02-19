@@ -2,23 +2,37 @@
 
 import { useEffect, useCallback, useRef, useMemo, useState } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import type { BoardObject } from "@/types/board";
 import { useBoardStore } from "@/lib/board-store";
 import { createBoardKeyHandler } from "@/lib/board-keyboard";
 import { createClerkSupabaseClient, createRealtimeClient } from "@/lib/supabase";
 import { BoardCanvas } from "@/components/board/BoardCanvas";
-import { ToolBar } from "@/components/board/ToolBar";
+import { Sidebar } from "@/components/board/Sidebar";
+import { MenuBar } from "@/components/board/MenuBar";
+import { AiCommandBar } from "@/components/board/AiCommandBar";
 import { PresenceBar } from "@/components/board/PresenceBar";
 import { TextEditor } from "@/components/board/TextEditor";
 import { PropertyPanel } from "@/components/board/PropertyPanel";
+import { ShareDialog } from "@/components/board/ShareDialog";
+import { EmptyBoardHint } from "@/components/board/EmptyBoardHint";
+import { KeyboardHelpOverlay } from "@/components/board/KeyboardHelpOverlay";
+import { BoardContext } from "@/components/board/BoardContext";
+import type { BoardContextValue } from "@/components/board/BoardContext";
+import { useUndoRedoKeyboard } from "@/hooks/useUndoRedoKeyboard";
+import {
+  serializeObjectsToClipboard,
+  deserializeClipboard,
+  createDuplicates,
+  createPasteCommand,
+  createDuplicateCommand,
+} from "@/lib/transforms";
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export default function BoardPage() {
   const { user } = useUser();
   const { getToken } = useAuth();
   const params = useParams();
-  const router = useRouter();
   const boardId = params.boardId as string;
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
@@ -36,6 +50,10 @@ export default function BoardPage() {
 
   // Space key tracking for pan
   const [isSpaceHeld, setIsSpaceHeld] = useState(false);
+  const [boardName, setBoardName] = useState("Untitled Board");
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const clipboardRef = useRef<string>("");
 
   useEffect(() => {
     if (!user) return;
@@ -43,6 +61,18 @@ export default function BoardPage() {
     const cleanup = store.subscribe();
     return cleanup;
   }, [user, store.loadObjects, store.subscribe]);
+
+  // Dynamic document title
+  useEffect(() => {
+    document.title = `${boardName} | CollabBoard`;
+  }, [boardName]);
+
+  // Wire undo/redo keyboard shortcuts
+  useUndoRedoKeyboard({
+    undo: store.undo,
+    redo: store.redo,
+    enabled: !store.editingId,
+  });
 
   const lastCursorRef = useRef(0);
   const handleCursorMove = useCallback(
@@ -58,7 +88,7 @@ export default function BoardPage() {
 
   const handleCanvasClick = useCallback(
     (wx: number, wy: number) => {
-      if (store.activeTool !== "select") {
+      if (store.activeTool !== "select" && store.activeTool !== "pan") {
         void store.createObject(store.activeTool, wx, wy);
         store.setActiveTool("select");
       }
@@ -184,12 +214,19 @@ export default function BoardPage() {
       setSelectedIds: store.setSelectedIds,
       setActiveTool: store.setActiveTool,
       objects: store.objects,
+      onCopy: handleCopy,
+      onPaste: handlePaste,
+      onDuplicate: handleDuplicate,
     });
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space" && !store.editingId) {
         e.preventDefault();
         setIsSpaceHeld(true);
+        return;
+      }
+      if (e.key === "?" && !store.editingId) {
+        setIsHelpOpen((prev) => !prev);
         return;
       }
       handleKey(e);
@@ -213,13 +250,94 @@ export default function BoardPage() {
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", handleBlur);
     };
-  }, [store.editingId, handleDelete, store.setSelectedIds, store.setActiveTool, store.objects]);
+  }, [
+    store.editingId,
+    handleDelete,
+    store.setSelectedIds,
+    store.setActiveTool,
+    store.objects,
+    handleCopy,
+    handlePaste,
+    handleDuplicate,
+  ]);
 
   const editingObject = store.editingId
     ? store.objects.find((o) => o.id === store.editingId)
     : null;
 
   const selectedObjects = store.objects.filter((o) => store.selectedIds.includes(o.id));
+
+  // Copy selected objects to internal clipboard
+  const handleCopy = useCallback(() => {
+    const selected = store.objects.filter((o) => store.selectedIds.includes(o.id));
+    if (selected.length > 0) {
+      clipboardRef.current = serializeObjectsToClipboard(selected);
+    }
+  }, [store.objects, store.selectedIds]);
+
+  // Paste from internal clipboard
+  const handlePaste = useCallback(() => {
+    if (!clipboardRef.current) return;
+    const objects = deserializeClipboard(clipboardRef.current);
+    if (objects.length === 0) return;
+    const duplicates = createDuplicates(objects);
+    const pipeline = store.getPipeline();
+    const cmd = createPasteCommand(duplicates, pipeline);
+    store.history.execute(cmd);
+    store.setSelectedIds(duplicates.map((d) => d.id));
+  }, [store]);
+
+  // Duplicate selected objects
+  const handleDuplicate = useCallback(() => {
+    if (store.selectedIds.length === 0) return;
+    const pipeline = store.getPipeline();
+    const cmd = createDuplicateCommand(store.selectedIds, pipeline);
+    store.history.execute(cmd);
+    store.setSelectedIds(cmd.createdIds);
+  }, [store]);
+
+  const handleAiSubmit = useCallback((_command: string) => {
+    // AI command processing — Phase 4
+  }, []);
+
+  // Build BoardContext value
+  const boardContextValue: BoardContextValue = useMemo(
+    () => ({
+      activeTool: store.activeTool,
+      setActiveTool: store.setActiveTool,
+      selectedIds: new Set(store.selectedIds),
+      undo: store.undo,
+      redo: store.redo,
+      canUndo: store.canUndo,
+      canRedo: store.canRedo,
+      zoom: store.camera.zoom,
+      setZoom: (z: number) => {
+        store.setCamera((prev) => ({ ...prev, zoom: z }));
+      },
+      fitToScreen: () => {
+        store.setCamera({ x: 0, y: 0, zoom: 1 });
+      },
+      deleteSelected: handleDelete,
+      duplicateSelected: handleDuplicate,
+      copySelected: handleCopy,
+      pasteFromClipboard: handlePaste,
+    }),
+    [
+      store.activeTool,
+      store.setActiveTool,
+      store.selectedIds,
+      store.undo,
+      store.redo,
+      store.canUndo,
+      store.canRedo,
+      store.camera.zoom,
+      store.setCamera,
+      handleDelete,
+      handleDuplicate,
+      handleCopy,
+      handlePaste,
+    ]
+  );
 
   if (!user) {
     return (
@@ -230,65 +348,87 @@ export default function BoardPage() {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden relative bg-gray-100">
-      <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
-        <button
-          onClick={() => {
-            router.push("/dashboard");
+    <BoardContext.Provider value={boardContextValue}>
+      <div className="h-screen w-screen overflow-hidden relative bg-gray-50">
+        {/* Top Menu Bar */}
+        <MenuBar
+          boardName={boardName}
+          onBoardNameChange={setBoardName}
+          onShareClick={() => {
+            setIsShareOpen(true);
           }}
-          className="bg-white rounded-lg px-3 py-1.5 shadow-sm border text-sm font-medium hover:bg-gray-50"
-        >
-          &larr; Back
-        </button>
-      </div>
-
-      <ToolBar
-        activeTool={store.activeTool}
-        onToolChange={store.setActiveTool}
-        onDelete={handleDelete}
-        hasSelection={store.selectedIds.length > 0}
-      />
-
-      <PresenceBar users={store.presenceUsers} currentUserId={user.id} />
-
-      <div className="absolute bottom-4 left-4 z-50 bg-white rounded-lg px-3 py-1.5 shadow-sm border text-sm text-gray-600">
-        {Math.round(store.camera.zoom * 100)}%
-      </div>
-
-      <BoardCanvas
-        objects={store.objects}
-        camera={store.camera}
-        selectedIds={store.selectedIds}
-        editingId={store.editingId}
-        activeTool={store.activeTool}
-        isSpaceHeld={isSpaceHeld}
-        cursors={store.cursors}
-        onCanvasClick={handleCanvasClick}
-        onObjectSelect={handleObjectSelect}
-        onObjectClick={handleObjectClick}
-        onObjectsMove={handleObjectsMove}
-        onObjectDoubleClick={handleDoubleClick}
-        onSelectionBox={handleSelectionBox}
-        onObjectResize={handleObjectResize}
-        onPan={handlePan}
-        onZoom={handleZoom}
-        onCursorMove={handleCursorMove}
-      />
-
-      {selectedObjects.length > 0 && !editingObject && (
-        <PropertyPanel selectedObjects={selectedObjects} onUpdateObjects={handleUpdateObjects} />
-      )}
-
-      {editingObject && (
-        <TextEditor
-          object={editingObject}
-          camera={store.camera}
-          onSave={handleTextSave}
-          onClose={() => {
-            store.setEditingId(null);
+          onShowShortcuts={() => {
+            setIsHelpOpen(true);
           }}
         />
-      )}
-    </div>
+
+        {/* Left Sidebar */}
+        <Sidebar />
+
+        {/* Collaborator Presence — repositioned below menu bar */}
+        <PresenceBar users={store.presenceUsers} currentUserId={user.id} />
+
+        {/* Canvas */}
+        <BoardCanvas
+          objects={store.objects}
+          camera={store.camera}
+          selectedIds={store.selectedIds}
+          editingId={store.editingId}
+          activeTool={store.activeTool}
+          isSpaceHeld={isSpaceHeld}
+          cursors={store.cursors}
+          onCanvasClick={handleCanvasClick}
+          onObjectSelect={handleObjectSelect}
+          onObjectClick={handleObjectClick}
+          onObjectsMove={handleObjectsMove}
+          onObjectDoubleClick={handleDoubleClick}
+          onSelectionBox={handleSelectionBox}
+          onObjectResize={handleObjectResize}
+          onPan={handlePan}
+          onZoom={handleZoom}
+          onCursorMove={handleCursorMove}
+        />
+
+        {/* Property Panel */}
+        {selectedObjects.length > 0 && !editingObject && (
+          <PropertyPanel selectedObjects={selectedObjects} onUpdateObjects={handleUpdateObjects} />
+        )}
+
+        {/* Text Editor Overlay */}
+        {editingObject && (
+          <TextEditor
+            object={editingObject}
+            camera={store.camera}
+            onSave={handleTextSave}
+            onClose={() => {
+              store.setEditingId(null);
+            }}
+          />
+        )}
+
+        {/* AI Command Bar */}
+        <AiCommandBar onSubmit={handleAiSubmit} isLoading={false} />
+
+        {/* Empty Board Onboarding */}
+        {store.objects.length === 0 && !store.editingId && <EmptyBoardHint />}
+
+        {/* Keyboard Shortcut Help */}
+        <KeyboardHelpOverlay
+          isOpen={isHelpOpen}
+          onClose={() => {
+            setIsHelpOpen(false);
+          }}
+        />
+
+        {/* Share Dialog */}
+        <ShareDialog
+          boardId={boardId}
+          isOpen={isShareOpen}
+          onClose={() => {
+            setIsShareOpen(false);
+          }}
+        />
+      </div>
+    </BoardContext.Provider>
   );
 }

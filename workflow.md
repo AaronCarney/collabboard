@@ -78,8 +78,8 @@ Always add: `Co-authored-by: Claude <noreply@anthropic.com>`
 
 A human must read the full diff before merge for:
 
-- Auth middleware changes (Clerk config, protected routes, `protectedProcedure`)
-- Database schema changes (Prisma migrations — review for data loss)
+- Auth middleware changes (Clerk config, protected routes, API route auth checks)
+- Database schema changes (Supabase migrations — review for data loss)
 - Data access mutations (new Supabase queries — verify RLS applies)
 - Secrets or environment variable additions
 - WebSocket connection limit or rate limiting changes (impacts all users)

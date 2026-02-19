@@ -1,7 +1,9 @@
 "use client";
 
 import { useRef, useEffect, useCallback, useState } from "react";
-import type { BoardObject, CursorPosition, ObjectType } from "@/types/board";
+import type { BoardObject, CursorPosition } from "@/types/board";
+import type { ToolType } from "@collabboard/shared";
+import { degreesToRadians } from "@/lib/transforms";
 import type { Camera } from "@/lib/board-store";
 import type { HandlePosition, SelectionRect } from "@/lib/board-logic";
 import {
@@ -12,6 +14,8 @@ import {
   hitTestHandle,
 } from "@/lib/board-logic";
 import { hasRenderer, getRenderer } from "@/components/board/renderers/renderer-registry";
+import { setObjectResolver } from "@/components/board/renderers/connector-renderer";
+import { SpatialIndex } from "@/lib/spatial-index";
 import "@/components/board/renderers/init";
 
 interface BoardCanvasProps {
@@ -19,7 +23,7 @@ interface BoardCanvasProps {
   camera: Camera;
   selectedIds: string[];
   editingId: string | null;
-  activeTool: ObjectType | "select";
+  activeTool: ToolType;
   isSpaceHeld: boolean;
   cursors: Map<string, CursorPosition>;
   onCanvasClick: (worldX: number, worldY: number) => void;
@@ -95,6 +99,22 @@ export function BoardCanvas({
     [objects]
   );
 
+  // Spatial index — rebuilt when objects change
+  const spatialIndexRef = useRef(new SpatialIndex<BoardObject>(200));
+  const objectsMapRef = useRef(new Map<string, BoardObject>());
+
+  // Rebuild spatial index when objects change
+  useEffect(() => {
+    const idx = new SpatialIndex<BoardObject>(200);
+    const map = new Map<string, BoardObject>();
+    idx.bulkInsert(objects);
+    for (const obj of objects) {
+      map.set(obj.id, obj);
+    }
+    spatialIndexRef.current = idx;
+    objectsMapRef.current = map;
+  }, [objects]);
+
   // Render
   const render = useCallback(() => {
     const canvas = canvasRef.current;
@@ -121,27 +141,35 @@ export function BoardCanvas({
     // Grid
     drawGrid(ctx, camera, w, h);
 
+    // Wire connector renderer's object resolver before render pass
+    const objMap = objectsMapRef.current;
+    setObjectResolver((id: string) => objMap.get(id) ?? null);
+
     // Compute viewport bounds in world space for culling
     const vpLeft = -camera.x / camera.zoom;
     const vpTop = -camera.y / camera.zoom;
     const vpRight = vpLeft + w / camera.zoom;
     const vpBottom = vpTop + h / camera.zoom;
-    const canCull = w > 0 && h > 0;
 
-    // Objects — use registry-based rendering with viewport culling
-    for (const obj of objects) {
-      // Viewport culling: skip objects entirely outside the viewport
-      if (
-        canCull &&
-        (obj.x + obj.width < vpLeft ||
-          obj.x > vpRight ||
-          obj.y + obj.height < vpTop ||
-          obj.y > vpBottom)
-      ) {
-        continue;
+    // Use spatial index for viewport query (O(1) instead of O(n))
+    const visibleObjects =
+      w > 0 && h > 0 ? spatialIndexRef.current.query(vpLeft, vpTop, vpRight, vpBottom) : objects;
+
+    // Objects — use registry-based rendering
+    for (const obj of visibleObjects) {
+      const isSelected = selectedIds.includes(obj.id);
+
+      // Apply rotation transform if object has non-zero rotation
+      const hasRotation = obj.rotation !== 0;
+      if (hasRotation) {
+        const cx = obj.x + obj.width / 2;
+        const cy = obj.y + obj.height / 2;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(degreesToRadians(obj.rotation));
+        ctx.translate(-cx, -cy);
       }
 
-      const isSelected = selectedIds.includes(obj.id);
       if (hasRenderer(obj.type)) {
         const renderer = getRenderer(obj.type);
         renderer.draw(ctx, obj, isSelected);
@@ -150,6 +178,10 @@ export function BoardCanvas({
       }
       if (isSelected) {
         drawResizeHandles(ctx, obj, camera.zoom);
+      }
+
+      if (hasRotation) {
+        ctx.restore();
       }
     }
 
@@ -166,17 +198,33 @@ export function BoardCanvas({
     ctx.restore();
   }, [objects, camera, selectedIds, cursors, selectionRect]);
 
-  // Animation loop
+  // Dirty-flag rendering: only render when state changes, not every frame
+  const dirtyRef = useRef(true);
+  const renderRef = useRef(render);
+  renderRef.current = render;
+
+  // Mark dirty when render deps change
   useEffect(() => {
+    dirtyRef.current = true;
+  }, [render]);
+
+  // Single rAF loop that only renders when dirty
+  useEffect(() => {
+    let running = true;
     const loop = () => {
-      render();
+      if (!running) return;
+      if (dirtyRef.current) {
+        dirtyRef.current = false;
+        renderRef.current();
+      }
       animFrameRef.current = requestAnimationFrame(loop);
     };
     animFrameRef.current = requestAnimationFrame(loop);
     return () => {
+      running = false;
       cancelAnimationFrame(animFrameRef.current);
     };
-  }, [render]);
+  }, []);
 
   // Resize
   useEffect(() => {

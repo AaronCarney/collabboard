@@ -4,6 +4,7 @@ import { useUser, useAuth, UserButton } from "@clerk/nextjs";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClerkSupabaseClient } from "@/lib/supabase";
+import { showToast } from "@/lib/toast";
 import type { Board } from "@/types/board";
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
@@ -44,6 +45,8 @@ export default function DashboardPage() {
       .single();
     if (result.data && !result.error) {
       router.push(`/board/${(result.data as Board).id}`);
+    } else if (result.error) {
+      showToast("Failed to create board", "error");
     }
   }, [user, router, supabase]);
 

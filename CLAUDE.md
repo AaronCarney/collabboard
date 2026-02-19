@@ -43,6 +43,19 @@ pnpm test:load     # k6 WebSocket load test
 - **Import order:** Node builtins → external packages → internal packages → relative
 - **Tailwind preferred** for styling; no inline `style=` except for dynamic canvas values
 
+## ESLint Rules (enforced by pre-commit, zero warnings allowed)
+
+These rules cause the most agent-generated lint failures. Follow them in ALL code:
+
+- **Explicit return types on exported functions** — every exported function needs a return type annotation (`: React.JSX.Element`, `: Promise<NextResponse>`, etc.)
+- **No `!` non-null assertions** — use type guards (`if (!val) return;`) or `?? fallback` instead
+- **No `any`** — type Supabase results explicitly, use `unknown` + narrowing for dynamic data
+- **Vitest imports** — always `import { describe, it, expect, vi } from 'vitest'` explicitly in test files (don't rely on globals)
+- **No void arrow returns** — wrap void calls in braces: `onClick={() => { doThing(); }}` not `onClick={() => doThing()`
+- **Clerk server imports** — use `@clerk/nextjs/server` for server-side `auth()`, not `@clerk/nextjs`
+
+Run `pnpm lint` before considering any file done. The pre-commit hook runs `eslint --fix --max-warnings=0` on ALL `*.{ts,tsx}` files project-wide.
+
 ## Architecture Invariants
 
 1. Canvas renders on client only — guard with `'use client'` or `typeof window !== 'undefined'`
