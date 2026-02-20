@@ -307,6 +307,22 @@ export function useBoardStore(
       });
     });
 
+    channel.on("broadcast", { event: "ai:result" }, ({ payload }) => {
+      const p = payload as { objects: unknown[]; userId: string };
+      // Skip if we sent this AI command (we already merged from the API response)
+      if (p.userId === userId) return;
+      const validated = validateBoardObjects(p.objects);
+      if (validated.length > 0) {
+        setObjectsMap((prev) => {
+          const next = new Map(prev);
+          for (const obj of validated) {
+            next.set(obj.id, obj);
+          }
+          return next;
+        });
+      }
+    });
+
     void channel.subscribe((status: string) => {
       if (DEBUG_REALTIME) console.log("[Realtime] channel status:", status); // eslint-disable-line no-console
       if (status === "SUBSCRIBED") {
@@ -510,6 +526,18 @@ export function useBoardStore(
     [supabase]
   );
 
+  // Merge objects into local state only (no broadcast/persist).
+  // Used when the server has already persisted and broadcast (e.g., AI command results).
+  const mergeObjects = useCallback((objs: BoardObject[]) => {
+    setObjectsMap((prev) => {
+      const next = new Map(prev);
+      for (const obj of objs) {
+        next.set(obj.id, obj);
+      }
+      return next;
+    });
+  }, []);
+
   return {
     objects,
     camera,
@@ -540,5 +568,7 @@ export function useBoardStore(
     mutate,
     mutateRemove,
     getPipeline,
+    // Local-only merge (for server-side results)
+    mergeObjects,
   };
 }

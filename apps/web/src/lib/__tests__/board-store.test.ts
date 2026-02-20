@@ -790,3 +790,109 @@ describe("useBoardStore — moveObjects", () => {
     expect(result.current.objects[1].x).toBe(200);
   });
 });
+
+// ─────────────────────────────────────────────────────────────
+// mergeObjects (local-only merge for server-side results)
+// ─────────────────────────────────────────────────────────────
+describe("useBoardStore — mergeObjects", () => {
+  const makeObj = (overrides: Partial<BoardObject> = {}): BoardObject =>
+    ({
+      id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      board_id: "board-1",
+      type: "sticky_note",
+      x: 100,
+      y: 200,
+      width: 200,
+      height: 200,
+      rotation: 0,
+      content: "AI note",
+      color: "#FFEB3B",
+      version: 1,
+      created_by: "server",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      parent_frame_id: null,
+      properties: {},
+      ...overrides,
+    }) as BoardObject;
+
+  it("adds objects to local state", () => {
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    act(() => {
+      result.current.mergeObjects([makeObj()]);
+    });
+
+    expect(result.current.objects).toHaveLength(1);
+    expect(result.current.objects[0].content).toBe("AI note");
+  });
+
+  it("does not broadcast to realtime channel", () => {
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    // Subscribe first so channel is active
+    act(() => {
+      result.current.subscribe();
+    });
+    mockRealtimeChannelSend.mockClear();
+
+    act(() => {
+      result.current.mergeObjects([makeObj()]);
+    });
+
+    expect(mockRealtimeChannelSend).not.toHaveBeenCalled();
+  });
+
+  it("does not persist to Supabase", () => {
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    mockFrom.mockClear();
+
+    act(() => {
+      result.current.mergeObjects([makeObj()]);
+    });
+
+    // mockFrom would be called if upsert/insert happened
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("merges multiple objects at once", () => {
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    act(() => {
+      result.current.mergeObjects([
+        makeObj({ id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", content: "One" }),
+        makeObj({ id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", content: "Two" }),
+      ]);
+    });
+
+    expect(result.current.objects).toHaveLength(2);
+  });
+
+  it("overwrites existing objects by id (last-write-wins)", async () => {
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    await act(async () => {
+      await result.current.createObject("sticky_note", 0, 0);
+    });
+
+    const existingId = result.current.objects[0].id;
+
+    act(() => {
+      result.current.mergeObjects([makeObj({ id: existingId, content: "Replaced" })]);
+    });
+
+    expect(result.current.objects).toHaveLength(1);
+    expect(result.current.objects[0].content).toBe("Replaced");
+  });
+});

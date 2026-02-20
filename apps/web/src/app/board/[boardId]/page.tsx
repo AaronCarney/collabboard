@@ -4,6 +4,8 @@ import { useEffect, useCallback, useRef, useMemo, useState } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
 import { useParams } from "next/navigation";
 import type { BoardObject } from "@/types/board";
+import { boardObjectSchema } from "@collabboard/shared";
+import { showToast } from "@/lib/toast";
 import { useBoardStore } from "@/lib/board-store";
 import { createBoardKeyHandler } from "@/lib/board-keyboard";
 import { createClerkSupabaseClient, createRealtimeClient } from "@/lib/supabase";
@@ -191,10 +193,14 @@ export default function BoardPage() {
   );
 
   const handleDelete = useCallback(() => {
+    const count = store.selectedIds.length;
     for (const id of store.selectedIds) {
       void store.deleteObject(id);
     }
     store.setSelectedIds([]);
+    if (count > 0) {
+      showToast(`Deleted ${String(count)} object(s)`, "info");
+    }
   }, [store.selectedIds, store.deleteObject, store.setSelectedIds]);
 
   const handleUpdateObjects = useCallback(
@@ -211,6 +217,7 @@ export default function BoardPage() {
     const selected = store.objects.filter((o) => store.selectedIds.includes(o.id));
     if (selected.length > 0) {
       clipboardRef.current = serializeObjectsToClipboard(selected);
+      showToast("Copied", "info");
     }
   }, [store.objects, store.selectedIds]);
 
@@ -224,6 +231,7 @@ export default function BoardPage() {
     const cmd = createPasteCommand(duplicates, pipeline);
     store.history.execute(cmd);
     store.setSelectedIds(duplicates.map((d) => d.id));
+    showToast("Pasted", "info");
   }, [store]);
 
   // Duplicate selected objects
@@ -296,9 +304,74 @@ export default function BoardPage() {
 
   const selectedObjects = store.objects.filter((o) => store.selectedIds.includes(o.id));
 
-  const handleAiSubmit = useCallback((_command: string) => {
-    // AI command processing — Phase 4
-  }, []);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResultMessage, setAiResultMessage] = useState<string | undefined>(undefined);
+
+  const handleAiSubmit = useCallback(
+    (command: string) => {
+      setAiLoading(true);
+      setAiResultMessage(undefined);
+
+      fetch("/api/ai/command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          boardId,
+          command,
+          context: {
+            selectedObjectIds: store.selectedIds.length > 0 ? store.selectedIds : undefined,
+            viewportCenter: {
+              x: -store.camera.x + window.innerWidth / 2 / store.camera.zoom,
+              y: -store.camera.y + window.innerHeight / 2 / store.camera.zoom,
+            },
+          },
+        }),
+      })
+        .then(async (res) => {
+          const data = (await res.json()) as {
+            success: boolean;
+            objects?: unknown[];
+            message?: string;
+            error?: string;
+            isTemplate?: boolean;
+          };
+
+          if (!res.ok || !data.success) {
+            const errorMsg = data.error ?? "AI command failed";
+            showToast(errorMsg, "error");
+            setAiResultMessage(errorMsg);
+            return;
+          }
+
+          // Validate objects through Zod before merging (consistent with all other ingestion paths)
+          const validatedObjects: BoardObject[] = [];
+          if (data.objects && data.objects.length > 0) {
+            for (const obj of data.objects) {
+              const result = boardObjectSchema.safeParse(obj);
+              if (result.success) {
+                validatedObjects.push(result.data as BoardObject);
+              }
+            }
+            if (validatedObjects.length > 0) {
+              store.mergeObjects(validatedObjects);
+            }
+          }
+
+          const successMsg = data.message ?? `Created ${String(validatedObjects.length)} object(s)`;
+          showToast(successMsg, "success");
+          setAiResultMessage(successMsg);
+        })
+        .catch((err: unknown) => {
+          const errorMsg = err instanceof Error ? err.message : "Network error";
+          showToast(errorMsg, "error");
+          setAiResultMessage(errorMsg);
+        })
+        .finally(() => {
+          setAiLoading(false);
+        });
+    },
+    [boardId, store.selectedIds, store.camera, store.mergeObjects]
+  );
 
   // Build BoardContext value
   const boardContextValue: BoardContextValue = useMemo(
@@ -407,7 +480,11 @@ export default function BoardPage() {
         )}
 
         {/* AI Command Bar */}
-        <AiCommandBar onSubmit={handleAiSubmit} isLoading={false} />
+        <AiCommandBar
+          onSubmit={handleAiSubmit}
+          isLoading={aiLoading}
+          resultPreview={aiResultMessage}
+        />
 
         {/* Empty Board Onboarding */}
         {store.objects.length === 0 && !store.editingId && <EmptyBoardHint />}
