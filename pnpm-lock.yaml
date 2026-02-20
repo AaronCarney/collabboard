@@ -96,13 +96,13 @@ importers:
   apps/web:
     dependencies:
       '@ai-sdk/anthropic':
-        specifier: ^3.0.45
+        specifier: 3.0.45
         version: 3.0.45(zod@3.25.76)
       '@ai-sdk/google':
-        specifier: ^3.0.29
+        specifier: 3.0.29
         version: 3.0.29(zod@3.25.76)
       '@ai-sdk/openai':
-        specifier: ^3.0.30
+        specifier: 3.0.30
         version: 3.0.30(zod@3.25.76)
       '@clerk/nextjs':
         specifier: ^6
@@ -117,7 +117,7 @@ importers:
         specifier: ^2
         version: 2.96.0
       ai:
-        specifier: ^6.0.91
+        specifier: 6.0.91
         version: 6.0.91(zod@3.25.76)
       autoprefixer:
         specifier: ^10.4.24
