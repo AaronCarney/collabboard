@@ -89,6 +89,13 @@ Active 2-3 servers max. Rotate by task:
 - Each worktree gets its own `.env.local` (copy from root)
 - Worktrees directory: `.trees/` (gitignored)
 
+## CI/CD
+
+- CI runs **typecheck, lint, test, build** in parallel on push/PR to `main`
+- All changes to `main` go through PRs with required CI checks
+- Verification gate: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` — all must pass
+- AI SDK packages are pinned to exact versions (no carets) due to frequent breaking changes in minors
+
 ## Maintenance
 
 Update this file at sprint end and after any architectural decision. Stale context costs more than no context.
