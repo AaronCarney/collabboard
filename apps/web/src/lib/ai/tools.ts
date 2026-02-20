@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import type { BoardObject } from "@collabboard/shared";
 import { z, OBJECT_DEFAULTS } from "@collabboard/shared";
-import type { ZodTypeAny } from "zod";
+import { tool } from "ai";
 
 // ─── Tool Parameter Schemas ──────────────────────────────────
 
@@ -196,42 +196,40 @@ export function executeChangeColor(
 
 // ─── Vercel AI SDK Tool Definitions ──────────────────────────
 
-export function getToolDefinitions(): Record<
-  string,
-  { description: string; parameters: ZodTypeAny }
-> {
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+export function getToolDefinitions() {
   return {
-    createStickyNote: {
+    createStickyNote: tool({
       description: "Create a new sticky note on the board",
-      parameters: createStickyNoteParams,
-    },
-    createShape: {
+      inputSchema: createStickyNoteParams,
+    }),
+    createShape: tool({
       description: "Create a shape (rectangle, circle, or text) on the board",
-      parameters: createShapeParams,
-    },
-    createFrame: {
+      inputSchema: createShapeParams,
+    }),
+    createFrame: tool({
       description: "Create a frame to group objects together",
-      parameters: createFrameParams,
-    },
-    moveObject: {
+      inputSchema: createFrameParams,
+    }),
+    moveObject: tool({
       description: "Move an existing object to a new position",
-      parameters: moveObjectParams,
-    },
-    resizeObject: {
+      inputSchema: moveObjectParams,
+    }),
+    resizeObject: tool({
       description: "Resize an existing object",
-      parameters: resizeObjectParams,
-    },
-    updateText: {
+      inputSchema: resizeObjectParams,
+    }),
+    updateText: tool({
       description: "Update the text content of an existing object",
-      parameters: updateTextParams,
-    },
-    changeColor: {
+      inputSchema: updateTextParams,
+    }),
+    changeColor: tool({
       description: "Change the color of an existing object",
-      parameters: changeColorParams,
-    },
-    getBoardState: {
+      inputSchema: changeColorParams,
+    }),
+    getBoardState: tool({
       description: "Get the current state of all objects on the board",
-      parameters: getBoardStateParams,
-    },
+      inputSchema: getBoardStateParams,
+    }),
   };
 }

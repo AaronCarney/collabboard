@@ -1,4 +1,4 @@
-import { generateText } from "ai";
+import { generateText, stepCountIs } from "ai";
 import { openai } from "@ai-sdk/openai";
 import type { BoardObject } from "@collabboard/shared";
 import { matchTemplate, generateTemplate } from "./templates";
@@ -85,7 +85,7 @@ async function routeToLlm(
     system: systemPrompt,
     prompt: input.command,
     tools,
-    maxSteps: 5,
+    stopWhen: stepCountIs(5),
   });
 
   // Process tool calls into BoardObjects
@@ -94,7 +94,7 @@ async function routeToLlm(
   for (const toolCall of result.toolCalls) {
     const obj = executeToolCall(
       toolCall.toolName,
-      toolCall.args as Record<string, unknown>,
+      toolCall.input as Record<string, unknown>,
       input.boardId,
       input.userId,
       input.existingObjects

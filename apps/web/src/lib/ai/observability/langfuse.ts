@@ -22,6 +22,7 @@ export async function traceLangFuse(data: TraceData): Promise<void> {
 
   try {
     // Dynamic import — only loads when langfuse is installed
+    // @ts-expect-error — langfuse is an optional dependency
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const { Langfuse } = await import("langfuse");
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call

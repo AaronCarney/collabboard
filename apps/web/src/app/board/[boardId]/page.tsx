@@ -206,6 +206,35 @@ export default function BoardPage() {
     [store.updateObject]
   );
 
+  // Copy selected objects to internal clipboard
+  const handleCopy = useCallback(() => {
+    const selected = store.objects.filter((o) => store.selectedIds.includes(o.id));
+    if (selected.length > 0) {
+      clipboardRef.current = serializeObjectsToClipboard(selected);
+    }
+  }, [store.objects, store.selectedIds]);
+
+  // Paste from internal clipboard
+  const handlePaste = useCallback(() => {
+    if (!clipboardRef.current) return;
+    const objects = deserializeClipboard(clipboardRef.current);
+    if (objects.length === 0) return;
+    const duplicates = createDuplicates(objects);
+    const pipeline = store.getPipeline();
+    const cmd = createPasteCommand(duplicates, pipeline);
+    store.history.execute(cmd);
+    store.setSelectedIds(duplicates.map((d) => d.id));
+  }, [store]);
+
+  // Duplicate selected objects
+  const handleDuplicate = useCallback(() => {
+    if (store.selectedIds.length === 0) return;
+    const pipeline = store.getPipeline();
+    const cmd = createDuplicateCommand(store.selectedIds, pipeline);
+    store.history.execute(cmd);
+    store.setSelectedIds(cmd.createdIds);
+  }, [store]);
+
   // Keyboard handling (including Space for pan)
   useEffect(() => {
     const handleKey = createBoardKeyHandler({
@@ -266,35 +295,6 @@ export default function BoardPage() {
     : null;
 
   const selectedObjects = store.objects.filter((o) => store.selectedIds.includes(o.id));
-
-  // Copy selected objects to internal clipboard
-  const handleCopy = useCallback(() => {
-    const selected = store.objects.filter((o) => store.selectedIds.includes(o.id));
-    if (selected.length > 0) {
-      clipboardRef.current = serializeObjectsToClipboard(selected);
-    }
-  }, [store.objects, store.selectedIds]);
-
-  // Paste from internal clipboard
-  const handlePaste = useCallback(() => {
-    if (!clipboardRef.current) return;
-    const objects = deserializeClipboard(clipboardRef.current);
-    if (objects.length === 0) return;
-    const duplicates = createDuplicates(objects);
-    const pipeline = store.getPipeline();
-    const cmd = createPasteCommand(duplicates, pipeline);
-    store.history.execute(cmd);
-    store.setSelectedIds(duplicates.map((d) => d.id));
-  }, [store]);
-
-  // Duplicate selected objects
-  const handleDuplicate = useCallback(() => {
-    if (store.selectedIds.length === 0) return;
-    const pipeline = store.getPipeline();
-    const cmd = createDuplicateCommand(store.selectedIds, pipeline);
-    store.history.execute(cmd);
-    store.setSelectedIds(cmd.createdIds);
-  }, [store]);
 
   const handleAiSubmit = useCallback((_command: string) => {
     // AI command processing — Phase 4

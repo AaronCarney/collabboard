@@ -15,11 +15,13 @@ vi.mock("ai", () => ({
     toolCalls: [
       {
         toolName: "createStickyNote",
-        args: { text: "Test note", x: 100, y: 100, color: "#FFEB3B" },
+        input: { text: "Test note", x: 100, y: 100, color: "#FFEB3B" },
       },
     ],
-    usage: { promptTokens: 100, completionTokens: 50 },
+    usage: { inputTokens: 100, outputTokens: 50 },
   }),
+  stepCountIs: vi.fn(() => () => false),
+  tool: vi.fn((def: Record<string, unknown>) => def),
 }));
 
 vi.mock("@ai-sdk/openai", () => ({

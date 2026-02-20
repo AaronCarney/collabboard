@@ -22,6 +22,7 @@ export async function traceLangSmith(data: TraceData): Promise<void> {
 
   try {
     // Dynamic import — only loads when langsmith is installed
+    // @ts-expect-error — langsmith is an optional dependency
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const { Client } = await import("langsmith");
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
