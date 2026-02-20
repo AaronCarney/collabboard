@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
+import type { routeCommand as RouteCommandFn } from "@/lib/ai/command-router";
 
 // ---- Mocks ----
 
@@ -20,14 +21,9 @@ vi.mock("@/lib/supabase-server", () => ({
   },
 }));
 
+const mockRouteCommand = vi.fn();
 vi.mock("@/lib/ai/command-router", () => ({
-  routeCommand: vi.fn().mockResolvedValue({
-    objects: [],
-    message: "Done",
-    tokensUsed: 10,
-    latencyMs: 100,
-    isTemplate: false,
-  }),
+  routeCommand: (...args: unknown[]): unknown => mockRouteCommand(...args),
 }));
 
 const BOARD_ID = "11111111-1111-1111-1111-111111111111";
@@ -42,17 +38,35 @@ function makeRequest(body: Record<string, unknown>): NextRequest {
   });
 }
 
-function setupBoardQuery(board: { id: string; created_by: string } | null): void {
+function defaultRouteResult(): Awaited<ReturnType<typeof RouteCommandFn>> {
+  return {
+    objects: [],
+    message: "Done",
+    tokensUsed: 10,
+    latencyMs: 100,
+    isTemplate: false,
+  };
+}
+
+function setupBoardQuery(
+  board: { id: string; created_by: string } | null,
+  options?: { boardError?: { code: string; message: string }; objectsError?: { message: string } }
+): void {
+  const boardError =
+    options?.boardError ?? (board ? null : { code: "PGRST116", message: "not found" });
   const chain = {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
-    single: vi.fn().mockResolvedValue({ data: board, error: null }),
+    single: vi.fn().mockResolvedValue({ data: board, error: boardError }),
   };
-  // First call: boards query (select id, created_by)
-  // Second call: board_objects query (select *)
   const objectsChain = {
     select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+    eq: vi
+      .fn()
+      .mockResolvedValue({
+        data: options?.objectsError ? null : [],
+        error: options?.objectsError ?? null,
+      }),
     upsert: vi.fn().mockResolvedValue({ error: null }),
   };
 
@@ -67,10 +81,32 @@ function setupBoardQuery(board: { id: string; created_by: string } | null): void
   });
 }
 
+function setupBroadcastChannel(subscribeStatus: string = "SUBSCRIBED"): {
+  send: ReturnType<typeof vi.fn>;
+  subscribe: ReturnType<typeof vi.fn>;
+} {
+  const mockSend = vi.fn().mockResolvedValue("ok");
+  const mockSubscribe = vi.fn().mockImplementation((cb: (status: string) => void) => {
+    // Call back asynchronously to simulate real behavior
+    setTimeout(() => {
+      cb(subscribeStatus);
+    }, 0);
+    return { send: mockSend };
+  });
+
+  mockChannel.mockReturnValue({ subscribe: mockSubscribe, send: mockSend });
+  mockRemoveChannel.mockResolvedValue(undefined);
+
+  return { send: mockSend, subscribe: mockSubscribe };
+}
+
 describe("POST /api/ai/command", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRouteCommand.mockResolvedValue(defaultRouteResult());
   });
+
+  // ---- Auth ----
 
   it("returns 401 when not authenticated", async () => {
     mockAuth.mockResolvedValue({ userId: null });
@@ -81,18 +117,6 @@ describe("POST /api/ai/command", () => {
 
     expect(res.status).toBe(401);
     expect(json.code).toBe("AUTH_ERROR");
-  });
-
-  it("returns 404 when board does not exist", async () => {
-    mockAuth.mockResolvedValue({ userId: OWNER_ID });
-    setupBoardQuery(null);
-
-    const { POST } = await import("../route");
-    const res = await POST(makeRequest({ boardId: BOARD_ID, command: "test" }));
-    const json = await res.json();
-
-    expect(res.status).toBe(404);
-    expect(json.code).toBe("BOARD_NOT_FOUND");
   });
 
   it("returns 403 when user is not the board owner", async () => {
@@ -120,6 +144,8 @@ describe("POST /api/ai/command", () => {
     expect(json.success).toBe(true);
   });
 
+  // ---- Validation ----
+
   it("returns 400 for invalid request body", async () => {
     mockAuth.mockResolvedValue({ userId: OWNER_ID });
 
@@ -129,5 +155,103 @@ describe("POST /api/ai/command", () => {
 
     expect(res.status).toBe(400);
     expect(json.code).toBe("INVALID_COMMAND");
+  });
+
+  // ---- Database errors ----
+
+  it("returns 404 when board does not exist", async () => {
+    mockAuth.mockResolvedValue({ userId: OWNER_ID });
+    setupBoardQuery(null);
+
+    const { POST } = await import("../route");
+    const res = await POST(makeRequest({ boardId: BOARD_ID, command: "test" }));
+    const json = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(json.code).toBe("BOARD_NOT_FOUND");
+  });
+
+  it("returns 500 when board query has a database error", async () => {
+    mockAuth.mockResolvedValue({ userId: OWNER_ID });
+    setupBoardQuery(null, { boardError: { code: "PGRST000", message: "connection refused" } });
+
+    const { POST } = await import("../route");
+    const res = await POST(makeRequest({ boardId: BOARD_ID, command: "test" }));
+    const json = await res.json();
+
+    expect(res.status).toBe(500);
+    expect(json.code).toBe("DB_ERROR");
+  });
+
+  it("returns 500 when board_objects query fails", async () => {
+    mockAuth.mockResolvedValue({ userId: OWNER_ID });
+    setupBoardQuery(
+      { id: BOARD_ID, created_by: OWNER_ID },
+      { objectsError: { message: "timeout" } }
+    );
+
+    const { POST } = await import("../route");
+    const res = await POST(makeRequest({ boardId: BOARD_ID, command: "test" }));
+    const json = await res.json();
+
+    expect(res.status).toBe(500);
+    expect(json.code).toBe("DB_ERROR");
+  });
+
+  // ---- Broadcast ----
+
+  it("broadcasts to channel when result has objects", async () => {
+    mockAuth.mockResolvedValue({ userId: OWNER_ID });
+    setupBoardQuery({ id: BOARD_ID, created_by: OWNER_ID });
+    const { send } = setupBroadcastChannel("SUBSCRIBED");
+
+    const testObjects = [{ id: "obj-1", type: "sticky_note" }];
+    mockRouteCommand.mockResolvedValue({ ...defaultRouteResult(), objects: testObjects });
+
+    const { POST } = await import("../route");
+    const res = await POST(makeRequest({ boardId: BOARD_ID, command: "test" }));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.success).toBe(true);
+    expect(mockChannel).toHaveBeenCalledWith(`board:${BOARD_ID}`);
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "broadcast",
+        event: "ai:result",
+        payload: { objects: testObjects, userId: OWNER_ID },
+      })
+    );
+    expect(mockRemoveChannel).toHaveBeenCalled();
+  });
+
+  it("returns 200 even when broadcast fails (non-fatal)", async () => {
+    mockAuth.mockResolvedValue({ userId: OWNER_ID });
+    setupBoardQuery({ id: BOARD_ID, created_by: OWNER_ID });
+    setupBroadcastChannel("CHANNEL_ERROR");
+
+    mockRouteCommand.mockResolvedValue({ ...defaultRouteResult(), objects: [{ id: "obj-1" }] });
+
+    const { POST } = await import("../route");
+    const res = await POST(makeRequest({ boardId: BOARD_ID, command: "test" }));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.success).toBe(true);
+    // Channel should still be cleaned up via finally
+    expect(mockRemoveChannel).toHaveBeenCalled();
+  });
+
+  it("cleans up channel even on subscribe rejection", async () => {
+    mockAuth.mockResolvedValue({ userId: OWNER_ID });
+    setupBoardQuery({ id: BOARD_ID, created_by: OWNER_ID });
+    setupBroadcastChannel("TIMED_OUT");
+
+    mockRouteCommand.mockResolvedValue({ ...defaultRouteResult(), objects: [{ id: "obj-1" }] });
+
+    const { POST } = await import("../route");
+    await POST(makeRequest({ boardId: BOARD_ID, command: "test" }));
+
+    expect(mockRemoveChannel).toHaveBeenCalled();
   });
 });

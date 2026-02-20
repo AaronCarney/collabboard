@@ -53,11 +53,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { boardId, command, context } = parsed.data;
 
   // Verify board exists and check ownership
-  const { data: board } = await supabaseAdmin
+  const { data: board, error: boardError } = await supabaseAdmin
     .from("boards")
     .select("id, created_by")
     .eq("id", boardId)
     .single();
+
+  if (boardError && boardError.code !== "PGRST116") {
+    return NextResponse.json(
+      { success: false, error: "Database error", code: "DB_ERROR" },
+      { status: 500 }
+    );
+  }
 
   if (!board) {
     return NextResponse.json(
@@ -81,17 +88,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // Fetch existing objects
-  const { data: existingObjects } = await supabaseAdmin
+  const { data: existingObjects, error: objectsError } = await supabaseAdmin
     .from("board_objects")
     .select("*")
     .eq("board_id", boardId);
+
+  if (objectsError) {
+    return NextResponse.json(
+      { success: false, error: "Failed to fetch board objects", code: "DB_ERROR" },
+      { status: 500 }
+    );
+  }
 
   try {
     const result = await routeCommand({
       command,
       boardId,
       userId,
-      existingObjects: (existingObjects ?? []) as BoardObject[],
+      existingObjects: existingObjects as BoardObject[],
       viewportCenter: context?.viewportCenter,
     });
 
@@ -106,9 +120,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
 
       // Broadcast to all connected clients (subscribe before send)
+      const channel = supabaseAdmin.channel(`board:${boardId}`);
       try {
-        const channel = supabaseAdmin.channel(`board:${boardId}`);
-        await new Promise<void>((resolve, reject) => {
+        const SUBSCRIBE_TIMEOUT_MS = 5000;
+        const subscribePromise = new Promise<void>((resolve, reject) => {
           channel.subscribe((status: string) => {
             if (status === "SUBSCRIBED") {
               resolve();
@@ -117,17 +132,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             }
           });
         });
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => {
+            reject(new Error("Channel subscribe timed out"));
+          }, SUBSCRIBE_TIMEOUT_MS)
+        );
+        await Promise.race([subscribePromise, timeoutPromise]);
 
         await channel.send({
           type: "broadcast",
           event: "ai:result",
           payload: { objects: result.objects, userId },
         });
-
-        await supabaseAdmin.removeChannel(channel);
       } catch (broadcastErr: unknown) {
         const msg = broadcastErr instanceof Error ? broadcastErr.message : "Unknown";
         console.warn("[AI] Broadcast failed (non-fatal):", msg); // eslint-disable-line no-console
+      } finally {
+        await supabaseAdmin.removeChannel(channel);
       }
     }
 
