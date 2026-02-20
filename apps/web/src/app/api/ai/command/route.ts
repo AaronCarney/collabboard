@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { z } from "@collabboard/shared";
 import type { BoardObject } from "@collabboard/shared";
-import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/lib/supabase-server";
 import { routeCommand } from "@/lib/ai/command-router";
 
 const aiCommandRequestSchema = z.object({
@@ -52,20 +52,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const { boardId, command, context } = parsed.data;
 
-  // Fetch board objects using service role key
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) {
-    return NextResponse.json(
-      { success: false, error: "Server configuration error", code: "LLM_ERROR" },
-      { status: 500 }
-    );
-  }
-
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
-
-  // Verify board exists
-  const { data: board } = await supabase.from("boards").select("id").eq("id", boardId).single();
+  // Verify board exists and check ownership
+  const { data: board } = await supabaseAdmin
+    .from("boards")
+    .select("id, created_by")
+    .eq("id", boardId)
+    .single();
 
   if (!board) {
     return NextResponse.json(
@@ -74,8 +66,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  // Owner-only: share-link model is token-based so we cannot map userId
+  // to a share token's access level server-side. AI commands use the
+  // service-role key, so we must enforce access ourselves.
+  if (board.created_by !== userId) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "You don't have permission to use AI commands on this board",
+        code: "AUTH_ERROR",
+      },
+      { status: 403 }
+    );
+  }
+
   // Fetch existing objects
-  const { data: existingObjects } = await supabase
+  const { data: existingObjects } = await supabaseAdmin
     .from("board_objects")
     .select("*")
     .eq("board_id", boardId);
@@ -91,20 +97,38 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Persist new/modified objects
     if (result.objects.length > 0) {
-      const { error: upsertError } = await supabase.from("board_objects").upsert(result.objects);
+      const { error: upsertError } = await supabaseAdmin
+        .from("board_objects")
+        .upsert(result.objects);
 
       if (upsertError) {
         console.warn("[AI] Failed to persist objects:", upsertError.message); // eslint-disable-line no-console
       }
 
-      // Broadcast to all connected clients
-      const channel = supabase.channel(`board:${boardId}`);
-      await channel.send({
-        type: "broadcast",
-        event: "ai:result",
-        payload: { objects: result.objects, userId },
-      });
-      await supabase.removeChannel(channel);
+      // Broadcast to all connected clients (subscribe before send)
+      try {
+        const channel = supabaseAdmin.channel(`board:${boardId}`);
+        await new Promise<void>((resolve, reject) => {
+          channel.subscribe((status: string) => {
+            if (status === "SUBSCRIBED") {
+              resolve();
+            } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+              reject(new Error(`Channel subscription failed: ${status}`));
+            }
+          });
+        });
+
+        await channel.send({
+          type: "broadcast",
+          event: "ai:result",
+          payload: { objects: result.objects, userId },
+        });
+
+        await supabaseAdmin.removeChannel(channel);
+      } catch (broadcastErr: unknown) {
+        const msg = broadcastErr instanceof Error ? broadcastErr.message : "Unknown";
+        console.warn("[AI] Broadcast failed (non-fatal):", msg); // eslint-disable-line no-console
+      }
     }
 
     return NextResponse.json({
