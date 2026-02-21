@@ -2,7 +2,7 @@
 
 import { useEffect, useCallback, useRef, useMemo, useState } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import type { BoardObject } from "@/types/board";
 import { boardObjectSchema } from "@collabboard/shared";
 import { showToast } from "@/lib/toast";
@@ -35,6 +35,7 @@ export default function BoardPage() {
   const { user } = useUser();
   const { getToken } = useAuth();
   const params = useParams();
+  const router = useRouter();
   const boardId = params.boardId as string;
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
@@ -61,6 +62,53 @@ export default function BoardPage() {
       typeof window !== "undefined" && localStorage.getItem("collabboard:hint-dismissed") === "true"
   );
   const clipboardRef = useRef<string>("");
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Load board name from DB on mount
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("boards")
+      .select("name")
+      .eq("id", boardId)
+      .single()
+      .then((result: { data: { name: string } | null; error: unknown }) => {
+        if (!result.data || result.error) {
+          showToast("Board not found", "error");
+          router.push("/dashboard");
+          return;
+        }
+        setBoardName(result.data.name);
+      });
+  }, [user, supabase, boardId, router]);
+
+  // Debounced save of board name to DB
+  const handleBoardNameChange = useCallback(
+    (name: string) => {
+      setBoardName(name);
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(() => {
+        const trimmedName = name.trim().slice(0, 100);
+        if (!trimmedName) return;
+        void supabase
+          .from("boards")
+          .update({ name: trimmedName, updated_at: new Date().toISOString() })
+          .eq("id", boardId);
+      }, 500);
+    },
+    [supabase, boardId]
+  );
 
   useEffect(() => {
     if (!user) return;
@@ -448,7 +496,7 @@ export default function BoardPage() {
         {/* Top Menu Bar */}
         <MenuBar
           boardName={boardName}
-          onBoardNameChange={setBoardName}
+          onBoardNameChange={handleBoardNameChange}
           onShareClick={() => {
             setIsShareOpen(true);
           }}

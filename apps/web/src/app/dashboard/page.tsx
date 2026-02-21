@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClerkSupabaseClient } from "@/lib/supabase";
 import { showToast } from "@/lib/toast";
 import type { Board } from "@/types/board";
+import { FREE_TIER_BOARD_LIMIT } from "@collabboard/shared";
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export default function DashboardPage() {
@@ -36,8 +37,14 @@ export default function DashboardPage() {
     void loadBoards();
   }, [user, loadBoards]);
 
+  const isAtLimit = boards.length >= FREE_TIER_BOARD_LIMIT;
+
   const createBoard = useCallback(async () => {
     if (!user) return;
+    if (boards.length >= FREE_TIER_BOARD_LIMIT) {
+      showToast("Board limit reached. Delete a board to create a new one.", "error");
+      return;
+    }
     const result = await supabase
       .from("boards")
       .insert({ name: "Untitled Board", created_by: user.id })
@@ -48,7 +55,7 @@ export default function DashboardPage() {
     } else if (result.error) {
       showToast("Failed to create board", "error");
     }
-  }, [user, router, supabase]);
+  }, [user, router, supabase, boards.length]);
 
   const deleteBoard = useCallback(
     async (boardId: string) => {
@@ -77,12 +84,20 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold">My Boards</h2>
           <button
-            onClick={() => void createBoard()}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+            onClick={() => {
+              void createBoard();
+            }}
+            disabled={isAtLimit}
+            className={`bg-blue-600 text-white px-4 py-2 rounded-lg transition${isAtLimit ? " opacity-50 cursor-not-allowed" : " hover:bg-blue-700"}`}
           >
             + New Board
           </button>
         </div>
+        {isAtLimit && (
+          <p className="text-sm text-amber-600 mb-4">
+            Free plan limit: {FREE_TIER_BOARD_LIMIT} boards. Delete a board to create a new one.
+          </p>
+        )}
         {loading ? (
           <p className="text-gray-500">Loading...</p>
         ) : boards.length === 0 ? (

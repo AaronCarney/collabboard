@@ -34,6 +34,8 @@ export {
 
 export type { BoardObjectZod } from "./schemas/board-objects";
 
+export { FREE_TIER_BOARD_LIMIT } from "./constants";
+
 export { z } from "zod";
 
 export {
