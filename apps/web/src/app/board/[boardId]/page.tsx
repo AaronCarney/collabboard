@@ -102,18 +102,19 @@ export default function BoardPage() {
   useEffect(() => {
     if (!shareToken) return;
     void validateShareToken(shareToken, fetch).then((result) => {
-      if (result.valid) {
+      if (result.valid && result.boardId === boardId) {
         setShareAccessLevel(result.accessLevel);
       } else {
         showToast("Invalid or expired share link", "error");
         router.push("/dashboard");
       }
     });
-  }, [shareToken, router]);
+  }, [shareToken, boardId, router]);
 
   // Save board name to DB (called on blur/Enter from MenuBar)
   const handleBoardNameChange = useCallback(
     (name: string) => {
+      if (readOnly) return;
       const sanitized = name
         .trim()
         .split("")
@@ -135,7 +136,7 @@ export default function BoardPage() {
           }
         });
     },
-    [supabase, boardId]
+    [supabase, boardId, readOnly]
   );
 
   useEffect(() => {
@@ -265,29 +266,32 @@ export default function BoardPage() {
 
   const handleObjectClick = useCallback(
     (id: string) => {
+      if (readOnly) return;
       const obj = store.objects.find((o) => o.id === id);
       if (obj && (obj.type === "sticky_note" || obj.type === "text")) {
         store.setEditingId(id);
       }
     },
-    [store.objects, store.setEditingId]
+    [store.objects, store.setEditingId, readOnly]
   );
 
   const handleObjectsMove = useCallback(
     (moves: { id: string; x: number; y: number }[], persist?: boolean) => {
+      if (readOnly) return;
       store.moveObjects(moves, persist);
     },
-    [store.moveObjects]
+    [store.moveObjects, readOnly]
   );
 
   const handleDoubleClick = useCallback(
     (id: string) => {
+      if (readOnly) return;
       const obj = store.objects.find((o) => o.id === id);
       if (obj && (obj.type === "sticky_note" || obj.type === "text")) {
         store.setEditingId(id);
       }
     },
-    [store.objects, store.setEditingId]
+    [store.objects, store.setEditingId, readOnly]
   );
 
   const handleSelectionBox = useCallback(
@@ -299,16 +303,18 @@ export default function BoardPage() {
 
   const handleObjectResize = useCallback(
     (id: string, bounds: { x: number; y: number; width: number; height: number }) => {
+      if (readOnly) return;
       store.updateObject(id, bounds);
     },
-    [store.updateObject]
+    [store.updateObject, readOnly]
   );
 
   const handleTextSave = useCallback(
     (id: string, content: string) => {
+      if (readOnly) return;
       store.updateObject(id, { content });
     },
-    [store.updateObject]
+    [store.updateObject, readOnly]
   );
 
   const handlePan = useCallback(
@@ -342,6 +348,7 @@ export default function BoardPage() {
   );
 
   const handleDelete = useCallback(() => {
+    if (readOnly) return;
     const count = store.selectedIds.length;
     for (const id of store.selectedIds) {
       void store.deleteObject(id);
@@ -350,15 +357,16 @@ export default function BoardPage() {
     if (count > 0) {
       showToast(`Deleted ${String(count)} object(s)`, "info");
     }
-  }, [store.selectedIds, store.deleteObject, store.setSelectedIds]);
+  }, [store.selectedIds, store.deleteObject, store.setSelectedIds, readOnly]);
 
   const handleUpdateObjects = useCallback(
     (ids: string[], changes: Partial<BoardObject>) => {
+      if (readOnly) return;
       for (const id of ids) {
         store.updateObject(id, changes);
       }
     },
-    [store.updateObject]
+    [store.updateObject, readOnly]
   );
 
   // Copy selected objects to internal clipboard
@@ -372,6 +380,7 @@ export default function BoardPage() {
 
   // Paste from internal clipboard
   const handlePaste = useCallback(() => {
+    if (readOnly) return;
     if (!clipboardRef.current) return;
     const objects = deserializeClipboard(clipboardRef.current);
     if (objects.length === 0) return;
@@ -381,16 +390,17 @@ export default function BoardPage() {
     store.history.execute(cmd);
     store.setSelectedIds(duplicates.map((d) => d.id));
     showToast("Pasted", "info");
-  }, [store]);
+  }, [store, readOnly]);
 
   // Duplicate selected objects
   const handleDuplicate = useCallback(() => {
+    if (readOnly) return;
     if (store.selectedIds.length === 0) return;
     const pipeline = store.getPipeline();
     const cmd = createDuplicateCommand(store.selectedIds, pipeline);
     store.history.execute(cmd);
     store.setSelectedIds(cmd.createdIds);
-  }, [store]);
+  }, [store, readOnly]);
 
   // Keyboard handling (including Space for pan)
   useEffect(() => {
@@ -462,6 +472,7 @@ export default function BoardPage() {
 
   const handleAiSubmit = useCallback(
     (command: string) => {
+      if (readOnly) return;
       setAiLoading(true);
       setAiResultMessage(undefined);
 
@@ -523,7 +534,7 @@ export default function BoardPage() {
           setAiLoading(false);
         });
     },
-    [boardId, store.selectedIds, store.camera, store.mergeObjects]
+    [boardId, store.selectedIds, store.camera, store.mergeObjects, readOnly]
   );
 
   // Build BoardContext value
@@ -600,8 +611,8 @@ export default function BoardPage() {
           }}
         />
 
-        {/* Left Sidebar */}
-        <Sidebar />
+        {/* Left Sidebar — hidden for read-only viewers */}
+        {!readOnly && <Sidebar />}
 
         {/* Collaborator Presence — repositioned below menu bar */}
         <PresenceBar users={store.presenceUsers} currentUserId={user.id} />
@@ -630,8 +641,8 @@ export default function BoardPage() {
           onConnectorCreate={handleConnectorCreate}
         />
 
-        {/* Property Panel */}
-        {selectedObjects.length > 0 && !editingObject && (
+        {/* Property Panel — hidden for read-only viewers */}
+        {!readOnly && selectedObjects.length > 0 && !editingObject && (
           <PropertyPanel selectedObjects={selectedObjects} onUpdateObjects={handleUpdateObjects} />
         )}
 
@@ -647,8 +658,8 @@ export default function BoardPage() {
           />
         )}
 
-        {/* AI Command Bar */}
-        {aiBarVisible && (
+        {/* AI Command Bar — hidden for read-only viewers */}
+        {aiBarVisible && !readOnly && (
           <AiCommandBar
             onSubmit={handleAiSubmit}
             isLoading={aiLoading}
@@ -672,14 +683,16 @@ export default function BoardPage() {
           }}
         />
 
-        {/* Share Dialog */}
-        <ShareDialog
-          boardId={boardId}
-          isOpen={isShareOpen}
-          onClose={() => {
-            setIsShareOpen(false);
-          }}
-        />
+        {/* Share Dialog — hidden for read-only viewers */}
+        {!readOnly && (
+          <ShareDialog
+            boardId={boardId}
+            isOpen={isShareOpen}
+            onClose={() => {
+              setIsShareOpen(false);
+            }}
+          />
+        )}
       </div>
     </BoardContext.Provider>
   );

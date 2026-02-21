@@ -11,9 +11,7 @@ import { hashCode, shouldAcceptUpdate } from "@/lib/board-logic";
 import { createCommandHistory } from "@/lib/board-commands";
 import type { CommandHistory, MutationPipeline } from "@/lib/board-commands";
 
-const DEBUG_REALTIME =
-  process.env.NEXT_PUBLIC_DEBUG_REALTIME === "true" ||
-  (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"));
+const DEBUG_REALTIME = process.env.NEXT_PUBLIC_DEBUG_REALTIME === "true";
 
 export interface Camera {
   x: number;

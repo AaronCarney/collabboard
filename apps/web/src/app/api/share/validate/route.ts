@@ -23,6 +23,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   return NextResponse.json({
+    valid: true,
     board_id: share.board_id,
     access_level: share.access_level,
   });
