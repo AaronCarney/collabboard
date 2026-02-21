@@ -8,6 +8,9 @@ import {
   executeResizeObject,
   executeUpdateText,
   executeChangeColor,
+  executeCreateConnector,
+  executeDeleteObject,
+  getToolDefinitions,
 } from "../tools";
 import type { BoardObject } from "@collabboard/shared";
 
@@ -131,6 +134,14 @@ describe("AI tools — executeResizeObject", () => {
     expect(result.height).toBe(300);
     expect(result.version).toBe(2);
   });
+
+  it("returns null for non-existent object", () => {
+    const result = executeResizeObject(
+      { objectId: "99999999-9999-9999-9999-999999999999", width: 400, height: 300 },
+      makeObjects()
+    );
+    expect(result).toBeNull();
+  });
 });
 
 describe("AI tools — executeUpdateText", () => {
@@ -144,6 +155,14 @@ describe("AI tools — executeUpdateText", () => {
     if (!result) return;
     expect(result.content).toBe("Updated content");
   });
+
+  it("returns null for non-existent object", () => {
+    const result = executeUpdateText(
+      { objectId: "99999999-9999-9999-9999-999999999999", newText: "Updated content" },
+      makeObjects()
+    );
+    expect(result).toBeNull();
+  });
 });
 
 describe("AI tools — executeChangeColor", () => {
@@ -156,5 +175,209 @@ describe("AI tools — executeChangeColor", () => {
     expect(result).not.toBeNull();
     if (!result) return;
     expect(result.color).toBe("#FF0000");
+  });
+
+  it("returns null for non-existent object", () => {
+    const result = executeChangeColor(
+      { objectId: "99999999-9999-9999-9999-999999999999", color: "#FF0000" },
+      makeObjects()
+    );
+    expect(result).toBeNull();
+  });
+});
+
+// ─── New tools (Phase 1, Tasks 1-3) ─────────────────────────
+
+const FROM_ID = "22222222-2222-2222-2222-222222222222";
+const TO_ID = "33333333-3333-3333-3333-333333333333";
+
+function makeConnectorObjects(): BoardObject[] {
+  return [
+    {
+      id: FROM_ID,
+      board_id: BOARD_ID,
+      type: "sticky_note",
+      x: 100,
+      y: 100,
+      width: 200,
+      height: 200,
+      rotation: 0,
+      content: "Source",
+      color: "#FFEB3B",
+      version: 1,
+      created_by: USER_ID,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      parent_frame_id: null,
+      properties: {},
+    },
+    {
+      id: TO_ID,
+      board_id: BOARD_ID,
+      type: "sticky_note",
+      x: 500,
+      y: 100,
+      width: 200,
+      height: 200,
+      rotation: 0,
+      content: "Target",
+      color: "#90CAF9",
+      version: 1,
+      created_by: USER_ID,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      parent_frame_id: null,
+      properties: {},
+    },
+  ];
+}
+
+describe("AI tools — executeCreateConnector", () => {
+  it("creates a BoardObject with type connector", () => {
+    const objects = makeConnectorObjects();
+    const result = executeCreateConnector(
+      { fromId: FROM_ID, toId: TO_ID, style: "arrow" },
+      BOARD_ID,
+      USER_ID,
+      objects
+    );
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result.type).toBe("connector");
+  });
+
+  it("populates connector properties with from/to object IDs", () => {
+    const objects = makeConnectorObjects();
+    const result = executeCreateConnector(
+      { fromId: FROM_ID, toId: TO_ID, style: "arrow" },
+      BOARD_ID,
+      USER_ID,
+      objects
+    );
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result.properties).toHaveProperty("from_object_id", FROM_ID);
+    expect(result.properties).toHaveProperty("to_object_id", TO_ID);
+  });
+
+  it("sets arrow_style based on the style argument", () => {
+    const objects = makeConnectorObjects();
+    const result = executeCreateConnector(
+      { fromId: FROM_ID, toId: TO_ID, style: "dashed" },
+      BOARD_ID,
+      USER_ID,
+      objects
+    );
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result.properties).toHaveProperty("stroke_style", "dashed");
+  });
+
+  it("sets arrow_style to 'none' when style is 'line'", () => {
+    const objects = makeConnectorObjects();
+    const result = executeCreateConnector(
+      { fromId: FROM_ID, toId: TO_ID, style: "line" },
+      BOARD_ID,
+      USER_ID,
+      objects
+    );
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result.properties).toHaveProperty("arrow_style", "none");
+    expect(result.properties).toHaveProperty("stroke_style", "solid");
+  });
+
+  it("defaults to arrow style when style is not provided", () => {
+    const objects = makeConnectorObjects();
+    const result = executeCreateConnector(
+      { fromId: FROM_ID, toId: TO_ID },
+      BOARD_ID,
+      USER_ID,
+      objects
+    );
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result.properties).toHaveProperty("arrow_style", "end");
+  });
+
+  it("returns null when fromId does not exist", () => {
+    const objects = makeConnectorObjects();
+    const result = executeCreateConnector(
+      { fromId: "99999999-9999-9999-9999-999999999999", toId: TO_ID },
+      BOARD_ID,
+      USER_ID,
+      objects
+    );
+    expect(result).toBeNull();
+  });
+
+  it("returns null when toId does not exist", () => {
+    const objects = makeConnectorObjects();
+    const result = executeCreateConnector(
+      { fromId: FROM_ID, toId: "99999999-9999-9999-9999-999999999999" },
+      BOARD_ID,
+      USER_ID,
+      objects
+    );
+    expect(result).toBeNull();
+  });
+
+  it("validates as a valid BoardObject via schema", () => {
+    const objects = makeConnectorObjects();
+    const result = executeCreateConnector(
+      { fromId: FROM_ID, toId: TO_ID, style: "arrow" },
+      BOARD_ID,
+      USER_ID,
+      objects
+    );
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(boardObjectSchema.safeParse(result).success).toBe(true);
+  });
+});
+
+describe("AI tools — executeDeleteObject", () => {
+  it("returns a DeletionMarker with correct objectId", () => {
+    const objects = makeConnectorObjects();
+    const result = executeDeleteObject({ objectId: FROM_ID }, objects);
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result.type).toBe("deletion");
+    expect(result.objectId).toBe(FROM_ID);
+  });
+
+  it("returns null when object is not found", () => {
+    const objects = makeConnectorObjects();
+    const result = executeDeleteObject(
+      { objectId: "99999999-9999-9999-9999-999999999999" },
+      objects
+    );
+    expect(result).toBeNull();
+  });
+
+  it("does not return a BoardObject (no board_id, version, etc.)", () => {
+    const objects = makeConnectorObjects();
+    const result = executeDeleteObject({ objectId: FROM_ID }, objects);
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result).not.toHaveProperty("board_id");
+    expect(result).not.toHaveProperty("version");
+  });
+});
+
+describe("AI tools — getToolDefinitions", () => {
+  it("returns definitions for 10 tools", () => {
+    const tools = getToolDefinitions();
+    expect(Object.keys(tools)).toHaveLength(10);
+  });
+
+  it("includes create_connector tool", () => {
+    const tools = getToolDefinitions();
+    expect(tools).toHaveProperty("create_connector");
+  });
+
+  it("includes delete_object tool", () => {
+    const tools = getToolDefinitions();
+    expect(tools).toHaveProperty("delete_object");
   });
 });

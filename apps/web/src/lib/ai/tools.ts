@@ -55,8 +55,8 @@ export const changeColorParams = z.object({
 export const getBoardStateParams = z.object({});
 
 export const createConnectorParams = z.object({
-  from_id: z.string().uuid().describe("ID of the source object"),
-  to_id: z.string().uuid().describe("ID of the target object"),
+  fromId: z.string().uuid().describe("ID of the source object"),
+  toId: z.string().uuid().describe("ID of the target object"),
   style: z
     .enum(["arrow", "line", "dashed"])
     .optional()
@@ -64,7 +64,7 @@ export const createConnectorParams = z.object({
 });
 
 export const deleteObjectParams = z.object({
-  object_id: z.string().uuid().describe("ID of the object to delete"),
+  objectId: z.string().uuid().describe("ID of the object to delete"),
 });
 
 export interface DeletionMarker {
@@ -218,8 +218,8 @@ export function executeCreateConnector(
   userId: string,
   existingObjects: BoardObject[]
 ): BoardObject | null {
-  const fromExists = existingObjects.some((o) => o.id === args.from_id);
-  const toExists = existingObjects.some((o) => o.id === args.to_id);
+  const fromExists = existingObjects.some((o) => o.id === args.fromId);
+  const toExists = existingObjects.some((o) => o.id === args.toId);
   if (!fromExists || !toExists) return null;
 
   const style = args.style ?? "arrow";
@@ -244,8 +244,8 @@ export function executeCreateConnector(
     updated_at: makeTimestamp(),
     parent_frame_id: null,
     properties: {
-      from_object_id: args.from_id,
-      to_object_id: args.to_id,
+      from_object_id: args.fromId,
+      to_object_id: args.toId,
       from_port: "center" as const,
       to_port: "center" as const,
       arrow_style: arrowStyle as "none" | "end" | "both",
@@ -258,9 +258,9 @@ export function executeDeleteObject(
   args: z.infer<typeof deleteObjectParams>,
   existingObjects: BoardObject[]
 ): DeletionMarker | null {
-  const found = existingObjects.some((o) => o.id === args.object_id);
+  const found = existingObjects.some((o) => o.id === args.objectId);
   if (!found) return null;
-  return { type: "deletion", objectId: args.object_id };
+  return { type: "deletion", objectId: args.objectId };
 }
 
 // ─── Vercel AI SDK Tool Definitions ──────────────────────────

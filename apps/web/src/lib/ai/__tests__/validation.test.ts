@@ -136,12 +136,101 @@ describe("validateToolCallArgs — objectId validation", () => {
     expect(result.error).toBeUndefined();
   });
 
-  it("does not validate from_id or to_id fields (handled by executor)", () => {
+  it("does not validate fromId or toId fields (handled by executor)", () => {
     const result = validateToolCallArgs(
       "create_connector",
-      { from_id: "nonexistent", to_id: "also-nonexistent" },
+      { fromId: "nonexistent", toId: "also-nonexistent" },
       []
     );
     expect(result.valid).toBe(true); // validation layer only checks objectId
+  });
+
+  it("returns valid: false when objectId is a string but existingObjects is empty", () => {
+    const result = validateToolCallArgs(
+      "moveObject",
+      { objectId: "99999999-9999-9999-9999-999999999999", x: 0, y: 0 },
+      []
+    );
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain("not found");
+  });
+
+  it("skips objectId check when objectId is a number (non-string)", () => {
+    const result = validateToolCallArgs(
+      "moveObject",
+      { objectId: 12345 as unknown as string, x: 0, y: 0 },
+      []
+    );
+    // Non-string objectId bypasses the lookup guard — validation passes
+    expect(result.valid).toBe(true);
+    expect(result.error).toBeUndefined();
+  });
+
+  it("skips objectId check when objectId is null", () => {
+    const result = validateToolCallArgs(
+      "moveObject",
+      { objectId: null as unknown as string, x: 0, y: 0 },
+      []
+    );
+    expect(result.valid).toBe(true);
+    expect(result.error).toBeUndefined();
+  });
+});
+
+describe("validateToolCallArgs — non-numeric field types", () => {
+  it("ignores a null value for width and does not clamp", () => {
+    const args: Record<string, unknown> = { width: null, height: 200 };
+    const result = validateToolCallArgs("createShape", args, []);
+    expect(result.valid).toBe(true);
+    expect(result.clamped).not.toContain("width");
+    // The null value is left unchanged (field returned early)
+    expect(args.width).toBeNull();
+  });
+
+  it("ignores a boolean value for height and does not clamp", () => {
+    const args: Record<string, unknown> = { width: 200, height: true };
+    const result = validateToolCallArgs("createShape", args, []);
+    expect(result.valid).toBe(true);
+    expect(result.clamped).not.toContain("height");
+    expect(args.height).toBe(true);
+  });
+
+  it("ignores an object value for x and does not clamp", () => {
+    const args: Record<string, unknown> = { x: { value: 100 }, y: 0 };
+    const result = validateToolCallArgs("createStickyNote", args, []);
+    expect(result.valid).toBe(true);
+    expect(result.clamped).not.toContain("x");
+  });
+});
+
+describe("validateToolCallArgs — NaN and Infinity", () => {
+  it("does not clamp NaN for width (Number.isFinite guard rejects it)", () => {
+    const args: Record<string, unknown> = { width: NaN, height: 200 };
+    const result = validateToolCallArgs("createShape", args, []);
+    expect(result.valid).toBe(true);
+    expect(result.clamped).not.toContain("width");
+    expect(args.width).toBeNaN();
+  });
+
+  it("does not clamp Infinity for height", () => {
+    const args: Record<string, unknown> = { width: 200, height: Infinity };
+    const result = validateToolCallArgs("createShape", args, []);
+    expect(result.valid).toBe(true);
+    expect(result.clamped).not.toContain("height");
+    expect(args.height).toBe(Infinity);
+  });
+
+  it("does not coerce string 'Infinity' for x (not a finite number)", () => {
+    const args: Record<string, unknown> = { x: "Infinity", y: 0 };
+    const result = validateToolCallArgs("createStickyNote", args, []);
+    expect(result.valid).toBe(true);
+    expect(result.clamped).not.toContain("x");
+  });
+
+  it("does not coerce string 'NaN' for y", () => {
+    const args: Record<string, unknown> = { x: 0, y: "NaN" };
+    const result = validateToolCallArgs("createStickyNote", args, []);
+    expect(result.valid).toBe(true);
+    expect(result.clamped).not.toContain("y");
   });
 });
