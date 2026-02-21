@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { BoardObject } from "@collabboard/shared";
 import { z, OBJECT_DEFAULTS } from "@collabboard/shared";
 import { tool } from "ai";
+import { resolveColor } from "./colors";
 
 // ─── Tool Parameter Schemas ──────────────────────────────────
 
@@ -53,6 +54,24 @@ export const changeColorParams = z.object({
 
 export const getBoardStateParams = z.object({});
 
+export const createConnectorParams = z.object({
+  from_id: z.string().uuid().describe("ID of the source object"),
+  to_id: z.string().uuid().describe("ID of the target object"),
+  style: z
+    .enum(["arrow", "line", "dashed"])
+    .optional()
+    .describe("Connector style (default: arrow)"),
+});
+
+export const deleteObjectParams = z.object({
+  object_id: z.string().uuid().describe("ID of the object to delete"),
+});
+
+export interface DeletionMarker {
+  type: "deletion";
+  objectId: string;
+}
+
 // ─── Tool Executors ──────────────────────────────────────────
 
 function makeTimestamp(): string {
@@ -75,7 +94,7 @@ export function executeCreateStickyNote(
     height: defaults.height ?? 200,
     rotation: 0,
     content: args.text,
-    color: args.color ?? "#FFEB3B",
+    color: resolveColor(args.color, "sticky_note"),
     version: 1,
     created_by: userId,
     created_at: makeTimestamp(),
@@ -90,7 +109,6 @@ export function executeCreateShape(
   boardId: string,
   userId: string
 ): BoardObject {
-  const defaults = OBJECT_DEFAULTS[args.type];
   return {
     id: uuidv4(),
     board_id: boardId,
@@ -101,7 +119,7 @@ export function executeCreateShape(
     height: args.height,
     rotation: 0,
     content: "",
-    color: args.color ?? defaults.color ?? "#42A5F5",
+    color: resolveColor(args.color, "shape"),
     version: 1,
     created_by: userId,
     created_at: makeTimestamp(),
@@ -126,7 +144,7 @@ export function executeCreateFrame(
     height: args.height,
     rotation: 0,
     content: args.title,
-    color: "#E0E0E0",
+    color: resolveColor(undefined, "frame"),
     version: 1,
     created_by: userId,
     created_at: makeTimestamp(),
@@ -188,10 +206,61 @@ export function executeChangeColor(
   if (!obj) return null;
   return {
     ...obj,
-    color: args.color,
+    color: resolveColor(args.color, obj.type),
     version: obj.version + 1,
     updated_at: makeTimestamp(),
   };
+}
+
+export function executeCreateConnector(
+  args: z.infer<typeof createConnectorParams>,
+  boardId: string,
+  userId: string,
+  existingObjects: BoardObject[]
+): BoardObject | null {
+  const fromExists = existingObjects.some((o) => o.id === args.from_id);
+  const toExists = existingObjects.some((o) => o.id === args.to_id);
+  if (!fromExists || !toExists) return null;
+
+  const style = args.style ?? "arrow";
+  const arrowStyle = style === "line" ? "none" : "end";
+  const strokeStyle = style === "dashed" ? "dashed" : "solid";
+
+  const defaults = OBJECT_DEFAULTS.connector;
+  return {
+    id: uuidv4(),
+    board_id: boardId,
+    type: "connector",
+    x: 0,
+    y: 0,
+    width: defaults.width ?? 0,
+    height: defaults.height ?? 0,
+    rotation: 0,
+    content: "",
+    color: defaults.color ?? "#333333",
+    version: 1,
+    created_by: userId,
+    created_at: makeTimestamp(),
+    updated_at: makeTimestamp(),
+    parent_frame_id: null,
+    properties: {
+      from_object_id: args.from_id,
+      to_object_id: args.to_id,
+      from_port: "center" as const,
+      to_port: "center" as const,
+      arrow_style: arrowStyle as "none" | "end" | "both",
+      stroke_style: strokeStyle as "solid" | "dashed" | "dotted",
+    },
+  } as BoardObject;
+}
+
+export function executeDeleteObject(
+  args: z.infer<typeof deleteObjectParams>,
+  existingObjects: BoardObject[]
+): DeletionMarker | null {
+  const found = existingObjects.some((o) => o.id === args.object_id);
+  if (!found) return null;
+  return { type: "deletion", objectId: args.object_id };
 }
 
 // ─── Vercel AI SDK Tool Definitions ──────────────────────────
@@ -230,6 +299,14 @@ export function getToolDefinitions() {
     getBoardState: tool({
       description: "Get the current state of all objects on the board",
       inputSchema: getBoardStateParams,
+    }),
+    create_connector: tool({
+      description: "Create a connector between two existing objects",
+      inputSchema: createConnectorParams,
+    }),
+    delete_object: tool({
+      description: "Delete an existing object from the board",
+      inputSchema: deleteObjectParams,
     }),
   };
 }
