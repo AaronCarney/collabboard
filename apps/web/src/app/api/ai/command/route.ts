@@ -100,6 +100,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  const safeSelectedIds = (context?.selectedObjectIds ?? []).filter((id: string) =>
+    (existingObjects as BoardObject[]).some((o: BoardObject) => o.id === id)
+  );
+
   try {
     const result = await routeCommand({
       command,
@@ -107,6 +111,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       userId,
       existingObjects: existingObjects as BoardObject[],
       viewportCenter: context?.viewportCenter,
+      selectedObjectIds: safeSelectedIds,
     });
 
     // Persist new/modified objects

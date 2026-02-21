@@ -9,11 +9,27 @@ interface TemplateResult {
 }
 
 const TEMPLATE_PATTERNS: { pattern: RegExp; name: TemplateName }[] = [
-  { pattern: /\bswot\b/i, name: "swot" },
-  { pattern: /\bkanban\b/i, name: "kanban" },
-  { pattern: /\bretro(?:spective)?\b/i, name: "retrospective" },
-  { pattern: /\bbrainstorm(?:ing)?\b/i, name: "brainstorm" },
-  { pattern: /\buser\s*journey\b/i, name: "user_journey" },
+  {
+    pattern: /\bswot\b|strengths\s+and\s+weaknesses\b/i,
+    name: "swot",
+  },
+  {
+    pattern: /\bkanban\b|\btask\s+board\b|\bto\s+do\s+doing\s+done\b/i,
+    name: "kanban",
+  },
+  {
+    pattern:
+      /\bretro(?:spective)?\b|\bstart\s+stop\s+continue\b|\bwhat\s+went\s+well\b|\bwent\s+well.*didn.?t\b/i,
+    name: "retrospective",
+  },
+  {
+    pattern: /\bbrain\s*storm(?:ing)?\b|\bidea\s+generation\b/i,
+    name: "brainstorm",
+  },
+  {
+    pattern: /\b(?:user|customer)\s+(?:journey|flow\s+map)\b/i,
+    name: "user_journey",
+  },
 ];
 
 /**
