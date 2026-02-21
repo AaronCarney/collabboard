@@ -208,7 +208,7 @@ export function getNearestPort(
   const cx = obj.x + obj.width / 2;
   const cy = obj.y + obj.height / 2;
 
-  const ports: Array<{ name: PortName; px: number; py: number }> = [
+  const ports: { name: PortName; px: number; py: number }[] = [
     { name: "top", px: cx, py: obj.y },
     { name: "right", px: obj.x + obj.width, py: cy },
     { name: "bottom", px: cx, py: obj.y + obj.height },
