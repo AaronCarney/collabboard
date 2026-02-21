@@ -31,6 +31,8 @@ interface BaseObject {
   opacity?: number;
   fontSize?: number;
   fontFamily?: string;
+  strokeColor?: string;
+  strokeWidth?: number;
   version: number;
   created_by: string;
   created_at: string;

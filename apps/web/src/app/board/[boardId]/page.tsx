@@ -56,6 +56,10 @@ export default function BoardPage() {
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [aiBarVisible, setAiBarVisible] = useState(true);
+  const [hintDismissed, setHintDismissed] = useState(
+    () =>
+      typeof window !== "undefined" && localStorage.getItem("collabboard:hint-dismissed") === "true"
+  );
   const clipboardRef = useRef<string>("");
 
   useEffect(() => {
@@ -89,9 +93,18 @@ export default function BoardPage() {
     [store.broadcastCursor]
   );
 
+  const handleDismissHint = useCallback(() => {
+    setHintDismissed(true);
+    localStorage.setItem("collabboard:hint-dismissed", "true");
+  }, []);
+
   const handleCanvasClick = useCallback(
     (wx: number, wy: number) => {
-      if (store.activeTool !== "select" && store.activeTool !== "pan") {
+      if (
+        store.activeTool !== "select" &&
+        store.activeTool !== "pan" &&
+        store.activeTool !== "connector"
+      ) {
         void store.createObject(store.activeTool, wx, wy);
         store.setActiveTool("select");
       }
@@ -181,7 +194,11 @@ export default function BoardPage() {
   const handleZoom = useCallback(
     (delta: number, cx: number, cy: number) => {
       store.setCamera((prev) => {
-        const newZoom = Math.max(0.1, Math.min(5, prev.zoom + delta));
+        // Proportional zoom: multiply by a factor rather than adding a delta.
+        // delta > 0 means zoom in (scroll up), delta < 0 means zoom out.
+        // Use 1.1 per wheel step for smooth scrolling (MenuBar uses 1.2).
+        const factor = delta > 0 ? 1.1 : 1 / 1.1;
+        const newZoom = Math.max(0.02, Math.min(20, prev.zoom * factor));
         const scale = newZoom / prev.zoom;
         return {
           x: cx - (cx - prev.x) * scale,
@@ -497,7 +514,9 @@ export default function BoardPage() {
         )}
 
         {/* Empty Board Onboarding */}
-        {store.objects.length === 0 && !store.editingId && <EmptyBoardHint />}
+        {store.objects.length === 0 && !store.editingId && !hintDismissed && (
+          <EmptyBoardHint onDismiss={handleDismissHint} />
+        )}
 
         {/* Keyboard Shortcut Help */}
         <KeyboardHelpOverlay

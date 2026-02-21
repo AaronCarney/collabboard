@@ -1,9 +1,20 @@
-import { MousePointerClick, Sparkles, Keyboard, Move } from "lucide-react";
+import { MousePointerClick, Sparkles, Keyboard, Move, X } from "lucide-react";
 
-export function EmptyBoardHint(): React.JSX.Element {
+interface EmptyBoardHintProps {
+  onDismiss: () => void;
+}
+
+export function EmptyBoardHint({ onDismiss }: EmptyBoardHintProps): React.JSX.Element {
   return (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-      <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200 p-8 max-w-sm text-center">
+      <div className="relative bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200 p-8 max-w-sm text-center">
+        <button
+          aria-label="Dismiss"
+          onClick={onDismiss}
+          className="pointer-events-auto absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition"
+        >
+          <X size={14} />
+        </button>
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Welcome to your board</h3>
         <div className="space-y-3 text-sm text-gray-600">
           <div className="flex items-center gap-3">

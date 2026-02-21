@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { BoardObject } from "@/types/board";
 import { clsx } from "clsx";
 
@@ -54,13 +54,57 @@ export function PropertyPanel({
   const currentFontFamily =
     selectedObjects.length === 1 ? (selectedObjects[0].fontFamily ?? "sans-serif") : null;
 
+  // Stroke color tracking
+  const strokeColors = new Set(selectedObjects.map((o) => o.strokeColor));
+  const currentStrokeColor = strokeColors.size === 1 ? ([...strokeColors][0] ?? null) : null;
+
+  // Stroke width tracking
+  const currentStrokeWidth =
+    selectedObjects.length === 1 ? (selectedObjects[0].strokeWidth ?? 2) : 2;
+
+  // Drag state
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    setIsDragging(true);
+    const parent = e.currentTarget.parentElement;
+    if (!parent) return;
+    const rect = parent.getBoundingClientRect();
+    dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }, []);
+
+  useEffect(() => {
+    if (!isDragging) return;
+    const handleMove = (e: MouseEvent): void => {
+      setPosition({
+        x: e.clientX - dragOffset.current.x,
+        y: e.clientY - dragOffset.current.y,
+      });
+    };
+    const handleUp = (): void => {
+      setIsDragging(false);
+    };
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+  }, [isDragging]);
+
   return (
-    <div className="absolute bottom-4 right-4 z-50 bg-white rounded-xl shadow-lg border p-3 w-56">
+    <div
+      className="absolute bottom-4 right-4 z-50 bg-white rounded-xl shadow-lg border p-3 w-56"
+      style={position ? { position: "fixed", left: position.x, top: position.y } : undefined}
+    >
       {/* Drag Handle */}
       <div
         data-testid="property-panel-drag-handle"
         className="flex justify-center mb-2"
-        style={{ cursor: "grab" }}
+        style={{ cursor: isDragging ? "grabbing" : "grab" }}
+        onMouseDown={handleDragStart}
       >
         <div className="w-8 h-1 bg-gray-300 rounded-full" />
       </div>
@@ -115,11 +159,11 @@ export function PropertyPanel({
           <button
             key={color}
             onClick={() => {
-              onUpdateObjects(ids, { color });
+              onUpdateObjects(ids, { strokeColor: color });
             }}
             className={clsx(
               "w-7 h-7 rounded-md border-2 transition-transform hover:scale-110",
-              currentColor === color ? "border-gray-800 scale-110" : "border-gray-200"
+              currentStrokeColor === color ? "border-gray-800 scale-110" : "border-gray-200"
             )}
             style={{ backgroundColor: color }}
             aria-label={`Stroke color ${color}`}
@@ -138,6 +182,10 @@ export function PropertyPanel({
         <select
           id="stroke-width-select"
           aria-label="Line Width"
+          value={currentStrokeWidth}
+          onChange={(e) => {
+            onUpdateObjects(ids, { strokeWidth: parseInt(e.target.value, 10) });
+          }}
           className="w-full text-sm border rounded px-2 py-1 text-gray-700"
         >
           {STROKE_WIDTHS.map((w) => (

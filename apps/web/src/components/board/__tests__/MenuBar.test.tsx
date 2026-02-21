@@ -140,9 +140,9 @@ describe("MenuBar", () => {
     ctx = createMockContext({ zoom: 1 });
     renderWithContext(<MenuBar boardName="Test" onBoardNameChange={vi.fn()} />, ctx);
     fireEvent.click(screen.getByLabelText("Zoom in"));
-    expect(ctx.setZoom).toHaveBeenCalledWith(1.1);
+    expect(ctx.setZoom).toHaveBeenCalledWith(1 * 1.2);
     fireEvent.click(screen.getByLabelText("Zoom out"));
-    expect(ctx.setZoom).toHaveBeenCalledWith(0.9);
+    expect(ctx.setZoom).toHaveBeenCalledWith(1 / 1.2);
   });
 
   it("renders the Clerk UserButton", () => {

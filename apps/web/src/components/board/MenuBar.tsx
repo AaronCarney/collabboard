@@ -20,6 +20,10 @@ interface MenuItem {
 
 type MenuId = "file" | "edit" | "view" | null;
 
+const MIN_ZOOM = 0.02;
+const MAX_ZOOM = 20;
+const ZOOM_STEP = 1.2;
+
 export function MenuBar({
   boardName,
   onBoardNameChange,
@@ -132,7 +136,7 @@ export function MenuBar({
       label: "Zoom In",
       shortcut: "Ctrl++",
       onClick: () => {
-        ctx.setZoom(Math.min(5, ctx.zoom + 0.1));
+        ctx.setZoom(Math.min(MAX_ZOOM, ctx.zoom * ZOOM_STEP));
         setOpenMenu(null);
       },
     },
@@ -140,7 +144,7 @@ export function MenuBar({
       label: "Zoom Out",
       shortcut: "Ctrl+-",
       onClick: () => {
-        ctx.setZoom(Math.max(0.1, ctx.zoom - 0.1));
+        ctx.setZoom(Math.max(MIN_ZOOM, ctx.zoom / ZOOM_STEP));
         setOpenMenu(null);
       },
     },
@@ -165,11 +169,11 @@ export function MenuBar({
   const zoomPercent = Math.round(ctx.zoom * 100);
 
   const handleZoomOut = useCallback(() => {
-    ctx.setZoom(Math.max(0.1, ctx.zoom - 0.1));
+    ctx.setZoom(Math.max(MIN_ZOOM, ctx.zoom / ZOOM_STEP));
   }, [ctx]);
 
   const handleZoomIn = useCallback(() => {
-    ctx.setZoom(Math.min(5, ctx.zoom + 0.1));
+    ctx.setZoom(Math.min(MAX_ZOOM, ctx.zoom * ZOOM_STEP));
   }, [ctx]);
 
   return (
