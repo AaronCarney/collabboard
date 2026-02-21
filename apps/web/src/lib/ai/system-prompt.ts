@@ -1,54 +1,90 @@
 import type { BoardObject } from "@collabboard/shared";
+import { serializeBoardState } from "./context-pruning";
+import type { Viewport } from "./context-pruning";
 
 /**
- * Build the system prompt for the AI agent, including serialized board state.
+ * Build the enhanced system prompt for the AI agent, including 3-tier
+ * serialized board state with viewport-aware context pruning.
  */
 export function buildSystemPrompt(
   objects: BoardObject[],
-  viewportCenter?: { x: number; y: number }
+  viewport: Viewport,
+  selectedIds?: string[]
 ): string {
-  const objectsSummary =
-    objects.length > 0
-      ? objects
-          .map(
-            (o) =>
-              `- ${o.type} id="${o.id}" at (${String(o.x)}, ${String(o.y)}) ${String(o.width)}x${String(o.height)} color="${o.color}" content="${o.content}"`
-          )
-          .join("\n")
-      : "(empty board)";
+  const vcx = viewport.x + viewport.width / 2;
+  const vcy = viewport.y + viewport.height / 2;
 
-  const centerInfo = viewportCenter
-    ? `The user's viewport is centered at approximately (${String(viewportCenter.x)}, ${String(viewportCenter.y)}). Place new objects near this position for visibility.`
-    : "Place new objects near (400, 300) as a default center.";
+  const ids = selectedIds ?? [];
+  const ctx = serializeBoardState(objects, viewport, ids);
 
-  return `You are an AI assistant for CollabBoard, a collaborative whiteboard application.
-You help users create, modify, and organize objects on their whiteboard.
+  const sections: string[] = [];
 
-## Board State
-The board currently contains ${String(objects.length)} object(s):
-${objectsSummary}
+  // ── Role ──────────────────────────────────────────────────
+  sections.push(
+    `## Role\nYou are CollabBoard AI, a whiteboard assistant. Execute tool calls, then respond with ONE sentence.`
+  );
 
-## Positioning
-${centerInfo}
-When creating multiple objects, space them out to avoid overlap. Use a grid layout when creating templates or groups.
+  // ── Coordinate System ─────────────────────────────────────
+  sections.push(
+    `## Coordinate System\nOrigin (0,0) is top-left. X increases right, Y increases down. Viewport center at (${String(vcx)}, ${String(vcy)}).`
+  );
 
-## Available Object Types
-- sticky_note: A square note card (default 200x200, good for ideas and labels)
-- rectangle: A rectangular shape (variable size, good for containers and blocks)
-- circle: A circular shape (equal width/height)
-- text: Plain text element (transparent background)
-- frame: A container that groups objects (dashed border, has a title)
+  // ── Color Palette ─────────────────────────────────────────
+  sections.push(
+    `## Color Palette
+Named colors available:
+- Yellow (#FFEB3B) — ideas, brainstorming
+- Red (#EF9A9A) — urgent, blockers
+- Green (#A5D6A7) — positive, done
+- Blue (#90CAF9) — info, reference
+- Purple (#CE93D8) — planning, strategy
+- Amber (#FFE082) — highlights
+- Orange (#FF8A65) — warnings, attention
+- Pink (#F48FB1) — creative
+- Teal (#80CBC4) — calm, secondary info
+- Indigo (#7986CB) — deep focus
+- Lime (#C5E1A5) — fresh, new
+- Gray (#E0E0E0) — neutral, frames
 
-## Default Colors
-- Sticky notes: #FFEB3B (yellow), #EF9A9A (red), #A5D6A7 (green), #90CAF9 (blue), #CE93D8 (purple), #FFE082 (amber)
-- Rectangles: #42A5F5 (blue)
-- Circles: #66BB6A (green)
-- Frames: #E0E0E0 (light gray)
+Semantic guidance: red=urgent/blockers, green=positive/done, yellow=ideas, blue=info, orange=warnings, purple=planning.`
+  );
 
-## Rules
+  // ── Rules ─────────────────────────────────────────────────
+  sections.push(
+    `## Rules
 - Use the provided tools to manipulate the board. Do not output text — use tool calls only.
-- When modifying existing objects, use their exact IDs from the board state above.
+- When creating multiple objects, plan spatial layout to avoid overlap. Leave at least 20px gaps between objects.
+- When modifying existing objects, use their exact IDs from the board state.
 - Validate that object IDs exist before attempting to move, resize, or modify them.
-- When creating layouts (grids, templates), space objects with at least 10px gaps.
-- Keep coordinates reasonable (0-2000 range is typical).`;
+- For connectors, specify from_object_id before to_object_id (source to target ordering).
+- Keep coordinates within reasonable bounds (0-5000 range is typical).`
+  );
+
+  // ── Out of Scope ──────────────────────────────────────────
+  sections.push(
+    `## Out of Scope
+If the user asks something unrelated to the whiteboard, respond: "I can only help with whiteboard operations. Please ask me to create, modify, or organize objects on the board."`
+  );
+
+  // ── Current Selection (conditional, placed before Board State for primacy) ─
+  if (ctx.selected) {
+    sections.push(`## Current Selection\n${ctx.selected}`);
+  }
+
+  // ── Board State ───────────────────────────────────────────
+  let boardStateContent = "## Board State\n";
+  if (ctx.viewport || ctx.nearby || ctx.summary) {
+    if (ctx.viewport) {
+      boardStateContent += `### Viewport Objects\n${ctx.viewport}\n\n`;
+    }
+    if (ctx.nearby) {
+      boardStateContent += `### Nearby Objects\n${ctx.nearby}\n\n`;
+    }
+    boardStateContent += ctx.summary;
+  } else {
+    boardStateContent += "(empty board)\n\n" + ctx.summary;
+  }
+  sections.push(boardStateContent);
+
+  return sections.join("\n\n");
 }

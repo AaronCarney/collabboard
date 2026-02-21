@@ -5,6 +5,8 @@ import { matchTemplate, generateTemplate } from "./templates";
 import { buildSystemPrompt } from "./system-prompt";
 import { instrument } from "./observability/instrument";
 import { validateToolCallArgs } from "./validation";
+import { resolveOverlaps } from "./collision";
+import { classifyContextNeed } from "./context-pruning";
 import {
   getToolDefinitions,
   executeCreateStickyNote,
@@ -82,7 +84,20 @@ async function routeToLlm(
   startTime: number,
   center: { x: number; y: number }
 ): Promise<CommandResult> {
-  const systemPrompt = buildSystemPrompt(input.existingObjects, center);
+  // Build a default viewport from center point (800x600)
+  const viewport = {
+    x: center.x - 400,
+    y: center.y - 300,
+    width: 800,
+    height: 600,
+  };
+
+  // Classify context need — skip full board state for simple create commands
+  const contextNeed = classifyContextNeed(input.command, false);
+  const objectsForContext =
+    contextNeed === "none" || contextNeed === "viewport_center_only" ? [] : input.existingObjects;
+
+  const systemPrompt = buildSystemPrompt(objectsForContext, viewport);
   const tools = getToolDefinitions();
 
   const result = await generateText({
@@ -116,6 +131,9 @@ async function routeToLlm(
     }
   }
 
+  // Resolve collisions among newly created objects and existing board state
+  const resolvedObjects = resolveOverlaps(objects, input.existingObjects);
+
   const tokensUsed = (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0);
   const latencyMs = Date.now() - startTime;
 
@@ -134,7 +152,7 @@ async function routeToLlm(
 
   return {
     success: true,
-    objects,
+    objects: resolvedObjects,
     deletedIds: deletedIds.length > 0 ? deletedIds : undefined,
     message: `Executed ${String(result.toolCalls.length)} action(s) via AI`,
     tokensUsed,
@@ -192,7 +210,7 @@ function executeToolCall(
     case "changeColor":
       return executeChangeColor(args as Parameters<typeof executeChangeColor>[0], existingObjects);
     case "getBoardState":
-      return existingObjects;
+      return null;
     case "create_connector":
       return executeCreateConnector(
         args as Parameters<typeof executeCreateConnector>[0],
