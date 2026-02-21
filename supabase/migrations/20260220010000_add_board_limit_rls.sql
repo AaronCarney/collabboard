@@ -3,11 +3,14 @@
 
 create or replace function public.user_board_count(uid text)
 returns bigint
-language sql security definer stable as $$
+language sql security definer stable
+set search_path = public
+as $$
   select count(*) from public.boards where created_by = uid
 $$;
 
 -- Replace the existing insert policy with one that enforces the limit
+-- Limit value (5) must match FREE_TIER_BOARD_LIMIT in packages/shared/src/constants.ts
 drop policy if exists "Users can create boards" on public.boards;
 create policy "Users can create boards"
   on public.boards for insert

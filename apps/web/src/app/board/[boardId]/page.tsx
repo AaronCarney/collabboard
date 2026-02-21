@@ -77,16 +77,6 @@ export default function BoardPage() {
       typeof window !== "undefined" && localStorage.getItem("collabboard:hint-dismissed") === "true"
   );
   const clipboardRef = useRef<string>("");
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Clean up debounce timer on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
-  }, []);
 
   // Load board name from DB on mount
   useEffect(() => {
@@ -119,21 +109,29 @@ export default function BoardPage() {
     });
   }, [shareToken, router]);
 
-  // Debounced save of board name to DB
+  // Save board name to DB (called on blur/Enter from MenuBar)
   const handleBoardNameChange = useCallback(
     (name: string) => {
       setBoardName(name);
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      debounceTimerRef.current = setTimeout(() => {
-        const trimmedName = name.trim().slice(0, 100);
-        if (!trimmedName) return;
-        void supabase
-          .from("boards")
-          .update({ name: trimmedName, updated_at: new Date().toISOString() })
-          .eq("id", boardId);
-      }, 500);
+      const sanitized = name
+        .trim()
+        .split("")
+        .filter((ch) => {
+          const code = ch.charCodeAt(0);
+          return code >= 0x20 && code !== 0x7f;
+        })
+        .join("")
+        .slice(0, 100);
+      if (!sanitized) return;
+      void supabase
+        .from("boards")
+        .update({ name: sanitized })
+        .eq("id", boardId)
+        .then(({ error }: { error: unknown }) => {
+          if (error) {
+            showToast("Failed to save board name", "error");
+          }
+        });
     },
     [supabase, boardId]
   );

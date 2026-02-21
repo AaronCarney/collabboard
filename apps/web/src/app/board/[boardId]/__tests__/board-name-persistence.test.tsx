@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, act, fireEvent } from "@testing-library/react";
 
 // ─────────────────────────────────────────────────────────────
@@ -48,7 +48,8 @@ vi.mock("@clerk/nextjs", () => ({
 // ─────────────────────────────────────────────────────────────
 // Mock Supabase client with chainable API
 // ─────────────────────────────────────────────────────────────
-const mockUpdateEq = vi.fn();
+const mockUpdateThen = vi.fn();
+const mockUpdateEq = vi.fn(() => ({ then: mockUpdateThen }));
 const mockUpdate = vi.fn(() => ({ eq: mockUpdateEq }));
 const mockSelectSingle = vi.fn();
 const mockSelectEq = vi.fn(() => ({ single: mockSelectSingle }));
@@ -131,13 +132,26 @@ vi.mock("@/components/board/MenuBar", () => ({
   }) => (
     <div data-testid="mock-menubar">
       <span data-testid="board-name-display">{boardName}</span>
-      <input
-        data-testid="board-name-input"
-        value={boardName}
-        onChange={(e) => {
-          onBoardNameChange(e.target.value);
+      <button
+        data-testid="board-name-save"
+        onClick={() => {
+          onBoardNameChange("New Board Name");
         }}
-      />
+      >
+        Save
+      </button>
+      <button
+        data-testid="board-name-save-custom"
+        onClick={() => {
+          // For tests that need custom names, we use a data attribute
+          const customName = document.getElementById(
+            "custom-name-input"
+          ) as HTMLInputElement | null;
+          onBoardNameChange(customName?.value ?? "");
+        }}
+      >
+        Save Custom
+      </button>
     </div>
   ),
 }));
@@ -185,167 +199,127 @@ vi.mock("@/lib/transforms", () => ({
 import { showToast } from "@/lib/toast";
 import BoardPage from "../page";
 
-describe("Board name persistence — AC1: saves to database", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-
-    // Re-wire chainable mock returns after clearAllMocks
-    mockSupabase.from.mockReturnValue({
-      select: mockSelectAll,
-      update: mockUpdate,
-    });
-    mockSelectAll.mockReturnValue({ eq: mockSelectEq });
-    mockSelectEq.mockReturnValue({ single: mockSelectSingle });
-    mockUpdate.mockReturnValue({ eq: mockUpdateEq });
-    mockUpdateEq.mockResolvedValue({ error: null });
-
-    // Default: board found on mount
-    mockSelectSingle.mockResolvedValue({
-      data: {
-        id: "test-board-id",
-        name: "My Persisted Board",
-        created_by: "test-user-id",
-        created_at: "2024-01-01T00:00:00Z",
-        updated_at: "2024-01-02T00:00:00Z",
-      },
-      error: null,
-    });
-
-    mockSubscribe.mockReturnValue(vi.fn());
+function setupMocks(): void {
+  mockSupabase.from.mockReturnValue({
+    select: mockSelectAll,
+    update: mockUpdate,
+  });
+  mockSelectAll.mockReturnValue({ eq: mockSelectEq });
+  mockSelectEq.mockReturnValue({ single: mockSelectSingle });
+  mockUpdate.mockReturnValue({ eq: mockUpdateEq });
+  mockUpdateEq.mockReturnValue({ then: mockUpdateThen });
+  mockUpdateThen.mockImplementation((cb: (result: { error: unknown }) => void) => {
+    cb({ error: null });
+    return { catch: vi.fn() };
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
+  mockSelectSingle.mockResolvedValue({
+    data: {
+      id: "test-board-id",
+      name: "My Persisted Board",
+      created_by: "test-user-id",
+      created_at: "2024-01-01T00:00:00Z",
+      updated_at: "2024-01-02T00:00:00Z",
+    },
+    error: null,
+  });
+
+  mockSubscribe.mockReturnValue(vi.fn());
+}
+
+describe("Board name persistence — AC1: saves to database on blur", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupMocks();
   });
 
   it("calls Supabase update on boards table when board name changes", async () => {
     render(<BoardPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("board-name-input")).toBeInTheDocument();
+      expect(screen.getByTestId("board-name-save")).toBeInTheDocument();
     });
 
-    const input = screen.getByTestId("board-name-input");
+    // Simulate MenuBar blur/Enter firing onBoardNameChange
     act(() => {
-      fireEvent.change(input, { target: { value: "New Board Name" } });
-    });
-
-    // Advance past the debounce window (500ms per spec)
-    act(() => {
-      vi.advanceTimersByTime(600);
+      fireEvent.click(screen.getByTestId("board-name-save"));
     });
 
     // The board page should call supabase.from("boards").update({name: ...}).eq("id", boardId)
-    expect(mockSupabase.from).toHaveBeenCalledWith("boards");
-    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ name: "New Board Name" }));
-    expect(mockUpdateEq).toHaveBeenCalledWith("id", "test-board-id");
+    await waitFor(() => {
+      expect(mockSupabase.from).toHaveBeenCalledWith("boards");
+      expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ name: "New Board Name" }));
+      expect(mockUpdateEq).toHaveBeenCalledWith("id", "test-board-id");
+    });
   });
 
-  it("includes updated_at in the Supabase update call", async () => {
+  it("does NOT include updated_at in update payload (DB trigger handles it)", async () => {
     render(<BoardPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("board-name-input")).toBeInTheDocument();
-    });
-
-    const input = screen.getByTestId("board-name-input");
-    act(() => {
-      fireEvent.change(input, { target: { value: "Updated Name" } });
+      expect(screen.getByTestId("board-name-save")).toBeInTheDocument();
     });
 
     act(() => {
-      vi.advanceTimersByTime(600);
+      fireEvent.click(screen.getByTestId("board-name-save"));
     });
 
-    // updated_at must be included in the update payload
-    expect(mockUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ updated_at: expect.any(String) as string })
-    );
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalled();
+    });
+
+    // updated_at should NOT be in the payload — the DB trigger sets it
+    const updateArg = mockUpdate.mock.calls[0][0] as Record<string, unknown>;
+    expect(updateArg).not.toHaveProperty("updated_at");
   });
 
-  it("debounces rapid name changes into a single DB write", async () => {
+  it("saves immediately on each blur (no debounce needed)", async () => {
     render(<BoardPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("board-name-input")).toBeInTheDocument();
+      expect(screen.getByTestId("board-name-save")).toBeInTheDocument();
     });
 
-    const input = screen.getByTestId("board-name-input");
-
-    // Simulate 5 rapid name changes within the debounce window
-    for (const name of ["A", "AB", "ABC", "ABCD", "ABCDE"]) {
-      act(() => {
-        fireEvent.change(input, { target: { value: name } });
-      });
-      // Advance 100ms between each — less than the 500ms debounce
-      act(() => {
-        vi.advanceTimersByTime(100);
-      });
-    }
-
-    // Now advance past the debounce window
+    // First save
     act(() => {
-      vi.advanceTimersByTime(600);
+      fireEvent.click(screen.getByTestId("board-name-save"));
     });
 
-    // Should have called update only once, with the final name
-    const updateCalls = mockUpdate.mock.calls;
-    const boardUpdateCalls = updateCalls.filter(
-      (call: unknown[]) =>
-        call[0] && typeof call[0] === "object" && "name" in (call[0] as Record<string, unknown>)
-    );
-    expect(boardUpdateCalls).toHaveLength(1);
-    expect(boardUpdateCalls[0][0]).toEqual(expect.objectContaining({ name: "ABCDE" }));
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    // Second save (simulating another blur)
+    act(() => {
+      fireEvent.click(screen.getByTestId("board-name-save"));
+    });
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalledTimes(2);
+    });
   });
 });
 
-describe("Board name persistence — edge cases: validation and cleanup", () => {
+describe("Board name persistence — edge cases: validation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-
-    mockSupabase.from.mockReturnValue({
-      select: mockSelectAll,
-      update: mockUpdate,
-    });
-    mockSelectAll.mockReturnValue({ eq: mockSelectEq });
-    mockSelectEq.mockReturnValue({ single: mockSelectSingle });
-    mockUpdate.mockReturnValue({ eq: mockUpdateEq });
-    mockUpdateEq.mockResolvedValue({ error: null });
-
-    mockSelectSingle.mockResolvedValue({
-      data: {
-        id: "test-board-id",
-        name: "My Persisted Board",
-        created_by: "test-user-id",
-        created_at: "2024-01-01T00:00:00Z",
-        updated_at: "2024-01-02T00:00:00Z",
-      },
-      error: null,
-    });
-
-    mockSubscribe.mockReturnValue(vi.fn());
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
+    setupMocks();
   });
 
   it("does NOT call Supabase update when the name is empty string", async () => {
-    render(<BoardPage />);
+    render(
+      <>
+        <input id="custom-name-input" defaultValue="" />
+        <BoardPage />
+      </>
+    );
 
     await waitFor(() => {
-      expect(screen.getByTestId("board-name-input")).toBeInTheDocument();
-    });
-
-    const input = screen.getByTestId("board-name-input");
-    act(() => {
-      fireEvent.change(input, { target: { value: "" } });
+      expect(screen.getByTestId("board-name-save-custom")).toBeInTheDocument();
     });
 
     act(() => {
-      vi.advanceTimersByTime(600);
+      fireEvent.click(screen.getByTestId("board-name-save-custom"));
     });
 
     // update should not have been called with a name field
@@ -358,19 +332,19 @@ describe("Board name persistence — edge cases: validation and cleanup", () => 
   });
 
   it("does NOT call Supabase update when the name is whitespace-only", async () => {
-    render(<BoardPage />);
+    render(
+      <>
+        <input id="custom-name-input" defaultValue="   " />
+        <BoardPage />
+      </>
+    );
 
     await waitFor(() => {
-      expect(screen.getByTestId("board-name-input")).toBeInTheDocument();
-    });
-
-    const input = screen.getByTestId("board-name-input");
-    act(() => {
-      fireEvent.change(input, { target: { value: "   " } });
+      expect(screen.getByTestId("board-name-save-custom")).toBeInTheDocument();
     });
 
     act(() => {
-      vi.advanceTimersByTime(600);
+      fireEvent.click(screen.getByTestId("board-name-save-custom"));
     });
 
     const updateCalls = mockUpdate.mock.calls;
@@ -382,88 +356,67 @@ describe("Board name persistence — edge cases: validation and cleanup", () => 
   });
 
   it("truncates names longer than 100 characters before writing to DB", async () => {
-    render(<BoardPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("board-name-input")).toBeInTheDocument();
-    });
-
     const longName = "A".repeat(150);
-    const input = screen.getByTestId("board-name-input");
-    act(() => {
-      fireEvent.change(input, { target: { value: longName } });
+    render(
+      <>
+        <input id="custom-name-input" defaultValue={longName} />
+        <BoardPage />
+      </>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("board-name-save-custom")).toBeInTheDocument();
     });
 
     act(() => {
-      vi.advanceTimersByTime(600);
+      fireEvent.click(screen.getByTestId("board-name-save-custom"));
     });
 
-    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ name: "A".repeat(100) }));
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ name: "A".repeat(100) }));
+    });
   });
 
-  it("does not write a name longer than 100 chars to DB", async () => {
+  it("strips control characters from the name before saving", async () => {
+    render(
+      <>
+        <input id="custom-name-input" defaultValue={"Hello\x00World\nTest"} />
+        <BoardPage />
+      </>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("board-name-save-custom")).toBeInTheDocument();
+    });
+
+    act(() => {
+      fireEvent.click(screen.getByTestId("board-name-save-custom"));
+    });
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ name: "HelloWorldTest" }));
+    });
+  });
+
+  it("shows error toast when Supabase update fails", async () => {
+    mockUpdateThen.mockImplementation((cb: (result: { error: unknown }) => void) => {
+      cb({ error: { message: "RLS violation" } });
+      return { catch: vi.fn() };
+    });
+
     render(<BoardPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("board-name-input")).toBeInTheDocument();
-    });
-
-    const longName = "B".repeat(120);
-    const input = screen.getByTestId("board-name-input");
-    act(() => {
-      fireEvent.change(input, { target: { value: longName } });
+      expect(screen.getByTestId("board-name-save")).toBeInTheDocument();
     });
 
     act(() => {
-      vi.advanceTimersByTime(600);
+      fireEvent.click(screen.getByTestId("board-name-save"));
     });
-
-    const updateCalls = mockUpdate.mock.calls;
-    const boardUpdateCalls = updateCalls.filter(
-      (call: unknown[]) =>
-        call[0] && typeof call[0] === "object" && "name" in (call[0] as Record<string, unknown>)
-    );
-    expect(boardUpdateCalls).toHaveLength(1);
-    const savedName = (boardUpdateCalls[0][0] as Record<string, unknown>).name as string;
-    expect(savedName.length).toBeLessThanOrEqual(100);
-    expect(savedName).toBe("B".repeat(100));
-  });
-
-  it("cleans up the debounce timer on unmount so no stale write fires", async () => {
-    const { unmount } = render(<BoardPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("board-name-input")).toBeInTheDocument();
+      expect(showToast).toHaveBeenCalledWith("Failed to save board name", "error");
     });
-
-    const input = screen.getByTestId("board-name-input");
-
-    // Trigger several rapid changes so the debounce timer is pending
-    for (const name of ["X", "XY", "XYZ"]) {
-      act(() => {
-        fireEvent.change(input, { target: { value: name } });
-      });
-      act(() => {
-        vi.advanceTimersByTime(100);
-      });
-    }
-
-    // Unmount before debounce window expires — cleanup should cancel the timer
-    act(() => {
-      unmount();
-    });
-
-    // Advance well past the debounce window; the cancelled timer must not fire
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    });
-
-    const updateCalls = mockUpdate.mock.calls;
-    const boardUpdateCalls = updateCalls.filter(
-      (call: unknown[]) =>
-        call[0] && typeof call[0] === "object" && "name" in (call[0] as Record<string, unknown>)
-    );
-    expect(boardUpdateCalls).toHaveLength(0);
   });
 });
 
@@ -478,7 +431,7 @@ describe("Board name persistence — AC2: loads from database on mount", () => {
     mockSelectAll.mockReturnValue({ eq: mockSelectEq });
     mockSelectEq.mockReturnValue({ single: mockSelectSingle });
     mockUpdate.mockReturnValue({ eq: mockUpdateEq });
-    mockUpdateEq.mockResolvedValue({ error: null });
+    mockUpdateEq.mockReturnValue({ then: mockUpdateThen });
 
     mockSubscribe.mockReturnValue(vi.fn());
   });
@@ -497,12 +450,10 @@ describe("Board name persistence — AC2: loads from database on mount", () => {
 
     render(<BoardPage />);
 
-    // The board page should fetch the board and display its persisted name
     await waitFor(() => {
       expect(screen.getByTestId("board-name-display")).toHaveTextContent("My Saved Board");
     });
 
-    // Verify the Supabase query was made
     expect(mockSupabase.from).toHaveBeenCalledWith("boards");
     expect(mockSelectAll).toHaveBeenCalledWith("name");
     expect(mockSelectEq).toHaveBeenCalledWith("id", "test-board-id");
