@@ -157,6 +157,79 @@ describe("CommandHistory", () => {
 });
 
 // ─────────────────────────────────────────────────────────────
+// pushWithoutExecuting (batch undo for AI commands)
+// ─────────────────────────────────────────────────────────────
+
+describe("pushWithoutExecuting", () => {
+  let history: CommandHistory;
+
+  beforeEach(() => {
+    history = createCommandHistory();
+  });
+
+  it("adds command to history without calling execute()", () => {
+    const execute = vi.fn();
+    const undo = vi.fn();
+    history.pushWithoutExecuting({ description: "pre-executed", execute, undo });
+    expect(execute).not.toHaveBeenCalled();
+    expect(history.canUndo()).toBe(true);
+  });
+
+  it("does NOT call cmd.execute()", () => {
+    const execute = vi.fn();
+    history.pushWithoutExecuting({
+      description: "test",
+      execute,
+      undo: vi.fn(),
+    });
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("after pushWithoutExecuting, canUndo() returns true", () => {
+    history.pushWithoutExecuting({
+      description: "test",
+      execute: vi.fn(),
+      undo: vi.fn(),
+    });
+    expect(history.canUndo()).toBe(true);
+  });
+
+  it("undo after pushWithoutExecuting calls cmd.undo()", () => {
+    const undo = vi.fn();
+    history.pushWithoutExecuting({
+      description: "test",
+      execute: vi.fn(),
+      undo,
+    });
+    history.undo();
+    expect(undo).toHaveBeenCalledOnce();
+  });
+
+  it("redo after undo calls cmd.execute() (standard redo)", () => {
+    const execute = vi.fn();
+    history.pushWithoutExecuting({
+      description: "test",
+      execute,
+      undo: vi.fn(),
+    });
+    history.undo();
+    history.redo();
+    // redo always calls execute
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it("clears the redo stack", () => {
+    const cmd1 = { description: "cmd1", execute: vi.fn(), undo: vi.fn() };
+    const cmd2 = { description: "cmd2", execute: vi.fn(), undo: vi.fn() };
+    history.execute(cmd1);
+    history.undo();
+    expect(history.canRedo()).toBe(true);
+    history.pushWithoutExecuting(cmd2);
+    expect(history.canRedo()).toBe(false);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
 // CreateCommand
 // ─────────────────────────────────────────────────────────────
 

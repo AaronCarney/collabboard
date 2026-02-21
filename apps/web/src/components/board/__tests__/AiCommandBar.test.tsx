@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { AiCommandBar } from "../AiCommandBar";
 
 describe("AiCommandBar", () => {
@@ -63,5 +63,58 @@ describe("AiCommandBar", () => {
       <AiCommandBar onSubmit={vi.fn()} isLoading={false} resultPreview="Generated 3 sticky notes" />
     );
     expect(screen.getByText("Generated 3 sticky notes")).toBeInTheDocument();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// AC-10: Command Bar UX enhancements
+// ─────────────────────────────────────────────────────────────
+
+describe("AiCommandBar — Escape key closes the bar", () => {
+  it("pressing Escape calls onClose callback", () => {
+    const onClose = vi.fn();
+    render(<AiCommandBar onSubmit={vi.fn()} isLoading={false} onClose={onClose} />);
+    const input = screen.getByPlaceholderText("Type / for AI commands...");
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+});
+
+describe("AiCommandBar — auto-focus on open", () => {
+  it("input is focused when the bar is expanded", () => {
+    render(<AiCommandBar onSubmit={vi.fn()} isLoading={false} />);
+    const input = screen.getByPlaceholderText("Type / for AI commands...");
+    expect(document.activeElement).toBe(input);
+  });
+});
+
+describe("AiCommandBar — result message auto-fade", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("result preview disappears after 3 seconds", () => {
+    render(<AiCommandBar onSubmit={vi.fn()} isLoading={false} resultPreview="Created 2 notes" />);
+    expect(screen.getByText("Created 2 notes")).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+
+    expect(screen.queryByText("Created 2 notes")).not.toBeInTheDocument();
+  });
+
+  it("result preview is still visible before 3 seconds", () => {
+    render(<AiCommandBar onSubmit={vi.fn()} isLoading={false} resultPreview="Created 2 notes" />);
+
+    act(() => {
+      vi.advanceTimersByTime(2999);
+    });
+
+    expect(screen.getByText("Created 2 notes")).toBeInTheDocument();
   });
 });
