@@ -81,19 +81,21 @@ export default function BoardPage() {
   // Load board name from DB on mount
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from("boards")
-      .select("name")
-      .eq("id", boardId)
-      .single()
-      .then((result: { data: { name: string } | null; error: unknown }) => {
-        if (!result.data || result.error) {
+    const loadBoard = async (): Promise<void> => {
+      try {
+        const result = await supabase.from("boards").select("name").eq("id", boardId).single();
+        if (result.error ?? !result.data) {
           showToast("Board not found", "error");
           router.push("/dashboard");
           return;
         }
-        setBoardName(result.data.name);
-      });
+        setBoardName((result.data as { name: string }).name);
+      } catch {
+        showToast("Failed to load board", "error");
+        router.push("/dashboard");
+      }
+    };
+    void loadBoard();
   }, [user, supabase, boardId, router]);
 
   // Validate share token if present
@@ -112,7 +114,6 @@ export default function BoardPage() {
   // Save board name to DB (called on blur/Enter from MenuBar)
   const handleBoardNameChange = useCallback(
     (name: string) => {
-      setBoardName(name);
       const sanitized = name
         .trim()
         .split("")
@@ -123,6 +124,7 @@ export default function BoardPage() {
         .join("")
         .slice(0, 100);
       if (!sanitized) return;
+      setBoardName(sanitized);
       void supabase
         .from("boards")
         .update({ name: sanitized })
