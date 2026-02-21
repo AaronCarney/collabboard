@@ -208,13 +208,13 @@ Append-only log. IDs are permanent across archival. Format: context, options, ch
 
 **Date:** 2026-02-18
 **Category:** Architecture
-**Context:** Documentation inconsistency discovered during plan review. `tech-stack.md` described per-property versioning (`{ propertyName, value, version, nonce }` per field), while D001 and the actual codebase implement per-object versioning (single `version` integer on each `BoardObject`). Needed to pick one and align all docs.
+**Context:** Documentation inconsistency discovered during plan review. `docs/tech-stack.md` described per-property versioning (`{ propertyName, value, version, nonce }` per field), while D001 and the actual codebase implement per-object versioning (single `version` integer on each `BoardObject`). Needed to pick one and align all docs.
 **Options:**
 
 1. **Per-property versioning:** Each field has its own version counter. Allows two users to edit different properties of the same object without conflict (e.g., User A changes color while User B changes text). But: adds payload size (version per field), complex merge logic, and the codebase already implements per-object.
 2. **Per-object versioning:** Single `version` integer per object. Any mutation increments it. Simpler payloads, simpler merge (`incoming.version >= existing.version`). The edge case it doesn't handle (two users editing different properties of the same object simultaneously) is near-zero probability for discrete whiteboard objects.
    **Choice:** Option 2 — Per-object versioning. This is what's already implemented.
-   **Rationale:** Discrete whiteboard objects (sticky notes, shapes, frames) are not like spreadsheet cells or rich text — users rarely edit different properties of the same object simultaneously. The 0.01% edge case (User A drags while User B recolors) is low-stakes: last write wins, user redoes their action. Per-property adds complexity for negligible benefit. Matches Excalidraw's production approach. All docs updated: `tech-stack.md`, `architecture.md` invariant #8, `CLAUDE.md` invariant #5.
+   **Rationale:** Discrete whiteboard objects (sticky notes, shapes, frames) are not like spreadsheet cells or rich text — users rarely edit different properties of the same object simultaneously. The 0.01% edge case (User A drags while User B recolors) is low-stakes: last write wins, user redoes their action. Per-property adds complexity for negligible benefit. Matches Excalidraw's production approach. All docs updated: `docs/tech-stack.md`, `architecture.md` invariant #8, `CLAUDE.md` invariant #5.
 
 ---
 
@@ -228,7 +228,7 @@ Append-only log. IDs are permanent across archival. Format: context, options, ch
 1. **Keep as deferred:** Leave scaffold and references for potential future use.
 2. **Remove references:** Clean up docs and env to reflect reality. The scaffold can be recreated if needed.
    **Choice:** Option 2 — Remove references from docs and .env.example.
-   **Rationale:** Stale references to unused infrastructure confuse agents and developers. The `apps/realtime/` directory can stay as an empty scaffold (removing it is a separate cleanup), but documentation should reflect what's actually in use. Cleaned up: `architecture.md` (stack table, monorepo diagram, invariants #6/#7), `tech-stack.md` (hosting row), `.env.example` (Cloudflare vars removed).
+   **Rationale:** Stale references to unused infrastructure confuse agents and developers. The `apps/realtime/` directory can stay as an empty scaffold (removing it is a separate cleanup), but documentation should reflect what's actually in use. Cleaned up: `architecture.md` (stack table, monorepo diagram, invariants #6/#7), `docs/tech-stack.md` (hosting row), `.env.example` (Cloudflare vars removed).
 
 ---
 

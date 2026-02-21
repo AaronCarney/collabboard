@@ -31,7 +31,7 @@ Rate each option on LLM-agent friendliness:
 
 Check each option against:
 
-- Already-decided stack (check `tech-stack.md`)
+- Already-decided stack (check `docs/tech-stack.md`)
 - Performance budgets (check `docs/architecture.md`)
 - Cost constraints
 - WSL2 / local dev compatibility
@@ -67,7 +67,7 @@ Key benefits for this project:
 ### Action Items
 - [ ] <First concrete step to adopt the recommendation>
 - [ ] <Second step>
-- [ ] Update `tech-stack.md` with decision and rationale
+- [ ] Update `docs/tech-stack.md` with decision and rationale
 ```
 
 Save the output to `docs/research/<topic>.md` for future reference.

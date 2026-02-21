@@ -44,9 +44,9 @@ collabboard/
 ├── .github/
 │   └── workflows/ci.yml
 ├── CLAUDE.md                 # AI context file (root)
-├── product.md                # Conductor product context
-├── tech-stack.md             # Conductor stack decisions
-└── workflow.md               # Conductor workflow config
+├── docs/product.md           # Conductor product context
+├── docs/tech-stack.md        # Conductor stack decisions
+└── docs/workflow.md          # Conductor workflow config
 ```
 
 ## Performance Budgets

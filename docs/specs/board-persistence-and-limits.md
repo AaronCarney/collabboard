@@ -17,7 +17,7 @@
 ### AC1: Board name saves to database
 
 - When a user edits the board name in the MenuBar and blurs or presses Enter, the new name is written to `boards.name` via Supabase
-- The `updated_at` timestamp is updated automatically by the DB trigger (`update_updated_at` in `supabase-setup.sql`)
+- The `updated_at` timestamp is updated automatically by the DB trigger (`update_updated_at` in `supabase/setup.sql`)
 - No debounce needed — MenuBar only fires `onBoardNameChange` on blur/Enter, not per-keystroke
 - Names are sanitized: trimmed, control characters stripped, truncated to 100 chars
 - Empty/whitespace-only names are rejected (not saved)

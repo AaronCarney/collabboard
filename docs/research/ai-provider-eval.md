@@ -157,7 +157,7 @@ Assumptions: ~2K input tokens/call (system prompt + board context), ~500 output 
 
 1. Set `OPENAI_API_KEY` in `.env.local`
 2. Update `architecture.md` stack table: AI row = "OpenAI GPT-4o-mini via Vercel AI SDK"
-3. Update `tech-stack.md` AI features row
+3. Update `docs/tech-stack.md` AI features row
 4. Proceed to Phase 4B implementation with `@ai-sdk/openai` as primary provider
 5. Wire LangFuse monitoring (Phase 4C) to track accuracy and cost in production
 

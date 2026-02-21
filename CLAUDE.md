@@ -2,7 +2,7 @@
 
 **Project:** Real-time collaborative whiteboard. Canvas 2D rendering, real-time sync via Supabase Realtime Broadcast, persistent state in Supabase Postgres, auth via Clerk, AI commands via Vercel AI SDK.
 
-**Stack:** Next.js 14 (App Router) · Clerk · Supabase (Postgres + Realtime) · Tailwind 3 · Canvas 2D API
+**Stack:** Next.js 14 (App Router) · Clerk · Supabase (Postgres + Realtime) · Tailwind 3 · Canvas 2D API. See `docs/tech-stack.md` for full details.
 
 <!-- Inherited from gauntlet/CLAUDE.md: TDD mandate, git workflow, security basics, context hygiene, platform rules. -->
 
@@ -62,7 +62,7 @@ Run `pnpm lint` before considering any file done. The pre-commit hook runs `esli
 2. Supabase Realtime Broadcast = sync layer; Supabase Postgres = persistence authority
 3. RLS on all Supabase tables; service role key is server-only
 4. `NEXT_PUBLIC_` prefix = truly public — never a secret or service key
-5. LWW + per-object version number for conflicts (not per-property — see D001, tech-stack.md)
+5. LWW + per-object version number for conflicts (not per-property — see D001, docs/tech-stack.md)
 6. AI commands use structured outputs only — Vercel AI SDK tool calling
 7. All server-side API routes verify Clerk auth before mutations
 8. Optimistic updates on canvas — never block renders on network

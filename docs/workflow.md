@@ -30,7 +30,7 @@ Every feature follows this 10-step sequence:
 
 **After architectural decision:**
 
-- Update `docs/architecture.md` and `tech-stack.md` immediately
+- Update `docs/architecture.md` and `docs/tech-stack.md` immediately
 - Update `CLAUDE.md` if the decision introduces a new invariant
 - Add a note to `docs/research/` with the decision rationale
 

@@ -122,11 +122,11 @@ _Doc Alignment (comprehensive — fix all stale references):_
 - Update `architecture.md` performance budget: change "Concurrent users/room: 300 max" to "5+ without degradation (spec target); stress test at 10"
 - Update `architecture.md` invariant #8: clarify versioning is per-object (single `version` integer per BoardObject), not per-property. This matches the implemented LWW in `board-store.ts`.
 - Update `CLAUDE.md` invariant #2 to match
-- Update `tech-stack.md`: API layer (direct Supabase + service layer), real-time (Supabase Realtime), remove Prisma
-- Update `tech-stack.md`: change "AI features: OpenAI 4.x" to "TBD — pending Phase 4A provider evaluation"
-- Update `tech-stack.md`: change hosting row to remove Cloudflare Workers reference
-- Update `tech-stack.md` conflict resolution section: clarify per-object versioning (not per-property). Remove `{ propertyName, value, version, nonce }` per-property payload description. Replace with: "Each object has a single `version` integer. All mutations send the full object state. Incoming updates accepted if `version >= existing`."
-- Add tRPC, Prisma, and Cloudflare Durable Objects to `tech-stack.md` rejection log with rationale (DO entry may already exist — verify before duplicating)
+- Update `docs/tech-stack.md`: API layer (direct Supabase + service layer), real-time (Supabase Realtime), remove Prisma
+- Update `docs/tech-stack.md`: change "AI features: OpenAI 4.x" to "TBD — pending Phase 4A provider evaluation"
+- Update `docs/tech-stack.md`: change hosting row to remove Cloudflare Workers reference
+- Update `docs/tech-stack.md` conflict resolution section: clarify per-object versioning (not per-property). Remove `{ propertyName, value, version, nonce }` per-property payload description. Replace with: "Each object has a single `version` integer. All mutations send the full object state. Incoming updates accepted if `version >= existing`."
+- Add tRPC, Prisma, and Cloudflare Durable Objects to `docs/tech-stack.md` rejection log with rationale (DO entry may already exist — verify before duplicating)
 - Clean up `.env.example`: remove or comment out Cloudflare API TOKEN and ACCOUNT_ID placeholders
 
 _Memory Protocol:_
@@ -617,7 +617,7 @@ _Scoring criteria:_
 | Multi-step reliability | 20% | Correct sequential tool execution for SWOT |
 
 _Output:_ `docs/research/ai-provider-eval.md` — requirements profile, comparison table, winner, rationale. This becomes a key artifact for the stakeholder report.
-_Doc update:_ After selecting a winner, update `architecture.md` stack table AI row and `tech-stack.md` AI features row with the chosen provider and version.
+_Doc update:_ After selecting a winner, update `architecture.md` stack table AI row and `docs/tech-stack.md` AI features row with the chosen provider and version.
 
 **Sub-phase 4B: AI Implementation (~4 hours)**
 
