@@ -101,6 +101,31 @@ describe("routeCommand", () => {
     expect(result.objects.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("forwards selectedObjectIds to buildSystemPrompt for LLM commands", async () => {
+    // Import the system-prompt module to spy on buildSystemPrompt
+    const systemPromptModule = await import("../system-prompt");
+    const buildSpy = vi.spyOn(systemPromptModule, "buildSystemPrompt");
+
+    const selectedIds = [
+      "22222222-2222-2222-2222-222222222222",
+      "33333333-3333-3333-3333-333333333333",
+    ];
+
+    await routeCommand({
+      command: "Change the color of the selected objects to blue",
+      boardId: BOARD_ID,
+      userId: USER_ID,
+      existingObjects: makeObjects(),
+      viewportCenter: { x: 400, y: 300 },
+      selectedObjectIds: selectedIds,
+    });
+
+    // buildSystemPrompt should have been called with selectedIds as the 3rd argument
+    expect(buildSpy).toHaveBeenCalledWith(expect.anything(), expect.anything(), selectedIds);
+
+    buildSpy.mockRestore();
+  });
+
   it("includes latency measurement", async () => {
     const result = await routeCommand({
       command: "Create a SWOT analysis",

@@ -7,6 +7,7 @@ import { instrument } from "./observability/instrument";
 import { validateToolCallArgs } from "./validation";
 import { resolveOverlaps } from "./collision";
 import { classifyContextNeed } from "./context-pruning";
+import { getSession, saveSession, resolveAnaphora } from "./session-memory";
 import {
   getToolDefinitions,
   executeCreateStickyNote,
@@ -27,6 +28,7 @@ export interface CommandInput {
   userId: string;
   existingObjects: BoardObject[];
   viewportCenter?: { x: number; y: number };
+  selectedObjectIds?: string[];
 }
 
 export interface CommandResult {
@@ -92,12 +94,17 @@ async function routeToLlm(
     height: 600,
   };
 
+  // Resolve anaphoric references ("it", "them", "those", etc.) using session memory
+  const session = getSession(input.userId, input.boardId);
+  const anaphoraIds = resolveAnaphora(input.command, session);
+  const selectedIds = anaphoraIds ?? input.selectedObjectIds ?? [];
+
   // Classify context need — skip full board state for simple create commands
   const contextNeed = classifyContextNeed(input.command, false);
   const objectsForContext =
     contextNeed === "none" || contextNeed === "viewport_center_only" ? [] : input.existingObjects;
 
-  const systemPrompt = buildSystemPrompt(objectsForContext, viewport);
+  const systemPrompt = buildSystemPrompt(objectsForContext, viewport, selectedIds);
   const tools = getToolDefinitions();
 
   const result = await generateText({
@@ -133,6 +140,15 @@ async function routeToLlm(
 
   // Resolve collisions among newly created objects and existing board state
   const resolvedObjects = resolveOverlaps(objects, input.existingObjects);
+
+  // Persist session state for anaphora resolution in subsequent commands
+  const createdIds = objects.map((o) => o.id);
+  saveSession(input.userId, input.boardId, {
+    lastCreatedIds: createdIds,
+    lastModifiedIds: [],
+    lastCommandText: input.command,
+    timestamp: Date.now(),
+  });
 
   const tokensUsed = (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0);
   const latencyMs = Date.now() - startTime;
