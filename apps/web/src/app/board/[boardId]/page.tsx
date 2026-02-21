@@ -55,6 +55,7 @@ export default function BoardPage() {
   const [boardName, setBoardName] = useState("Untitled Board");
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [aiBarVisible, setAiBarVisible] = useState(true);
   const clipboardRef = useRef<string>("");
 
   useEffect(() => {
@@ -254,6 +255,9 @@ export default function BoardPage() {
       onCopy: handleCopy,
       onPaste: handlePaste,
       onDuplicate: handleDuplicate,
+      onToggleAiBar: () => {
+        setAiBarVisible((prev) => !prev);
+      },
     });
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -296,6 +300,7 @@ export default function BoardPage() {
     handleCopy,
     handlePaste,
     handleDuplicate,
+    setAiBarVisible,
   ]);
 
   const editingObject = store.editingId
@@ -480,11 +485,16 @@ export default function BoardPage() {
         )}
 
         {/* AI Command Bar */}
-        <AiCommandBar
-          onSubmit={handleAiSubmit}
-          isLoading={aiLoading}
-          resultPreview={aiResultMessage}
-        />
+        {aiBarVisible && (
+          <AiCommandBar
+            onSubmit={handleAiSubmit}
+            isLoading={aiLoading}
+            resultPreview={aiResultMessage}
+            onClose={() => {
+              setAiBarVisible(false);
+            }}
+          />
+        )}
 
         {/* Empty Board Onboarding */}
         {store.objects.length === 0 && !store.editingId && <EmptyBoardHint />}

@@ -61,12 +61,10 @@ function setupBoardQuery(
   };
   const objectsChain = {
     select: vi.fn().mockReturnThis(),
-    eq: vi
-      .fn()
-      .mockResolvedValue({
-        data: options?.objectsError ? null : [],
-        error: options?.objectsError ?? null,
-      }),
+    eq: vi.fn().mockResolvedValue({
+      data: options?.objectsError ? null : [],
+      error: options?.objectsError ?? null,
+    }),
     upsert: vi.fn().mockResolvedValue({ error: null }),
   };
 
@@ -253,5 +251,72 @@ describe("POST /api/ai/command", () => {
     await POST(makeRequest({ boardId: BOARD_ID, command: "test" }));
 
     expect(mockRemoveChannel).toHaveBeenCalled();
+  });
+
+  // ---- Error handling ----
+
+  it("returns generic error message (not raw err.message) when routeCommand throws", async () => {
+    mockAuth.mockResolvedValue({ userId: OWNER_ID });
+    setupBoardQuery({ id: BOARD_ID, created_by: OWNER_ID });
+    mockRouteCommand.mockRejectedValue(new Error("OpenAI API key invalid: sk-abc..."));
+
+    const { POST } = await import("../route");
+    const res = await POST(makeRequest({ boardId: BOARD_ID, command: "test" }));
+    const json = await res.json();
+
+    expect(res.status).toBe(500);
+    // Must NOT contain the raw error message (security: info disclosure)
+    expect(json.error).not.toContain("OpenAI");
+    expect(json.error).not.toContain("sk-abc");
+    // Should contain a user-friendly message
+    expect(typeof json.error).toBe("string");
+    expect(json.error.length).toBeGreaterThan(10);
+  });
+
+  it("returns 'service_unavailable' category for 429 rate limit errors", async () => {
+    mockAuth.mockResolvedValue({ userId: OWNER_ID });
+    setupBoardQuery({ id: BOARD_ID, created_by: OWNER_ID });
+    mockRouteCommand.mockRejectedValue(Object.assign(new Error("rate limited"), { status: 429 }));
+
+    const { POST } = await import("../route");
+    const res = await POST(makeRequest({ boardId: BOARD_ID, command: "test" }));
+    const json = await res.json();
+
+    expect(res.status).toBe(500);
+    expect(json.code).toBe("SERVICE_UNAVAILABLE");
+  });
+
+  it("rejects NaN viewport coordinates with 400", async () => {
+    mockAuth.mockResolvedValue({ userId: OWNER_ID });
+
+    const { POST } = await import("../route");
+    const res = await POST(
+      makeRequest({
+        boardId: BOARD_ID,
+        command: "test",
+        context: { viewportCenter: { x: NaN, y: 100 } },
+      })
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(json.code).toBe("INVALID_COMMAND");
+  });
+
+  it("rejects Infinity viewport coordinates with 400", async () => {
+    mockAuth.mockResolvedValue({ userId: OWNER_ID });
+
+    const { POST } = await import("../route");
+    const res = await POST(
+      makeRequest({
+        boardId: BOARD_ID,
+        command: "test",
+        context: { viewportCenter: { x: Infinity, y: 100 } },
+      })
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(json.code).toBe("INVALID_COMMAND");
   });
 });

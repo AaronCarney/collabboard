@@ -10,12 +10,18 @@ export interface KeyHandlerDeps {
   onCopy?: () => void;
   onPaste?: () => void;
   onDuplicate?: () => void;
+  onToggleAiBar?: () => void;
 }
 
 export function createBoardKeyHandler(deps: KeyHandlerDeps): (e: KeyboardEvent) => void {
   return (e: KeyboardEvent) => {
     if (deps.editingId) return;
 
+    if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      deps.onToggleAiBar?.();
+      return;
+    }
     if (e.key === "Delete" || e.key === "Backspace") {
       deps.handleDelete();
     }

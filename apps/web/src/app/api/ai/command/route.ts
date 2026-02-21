@@ -5,6 +5,7 @@ import { z } from "@collabboard/shared";
 import type { BoardObject } from "@collabboard/shared";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { routeCommand } from "@/lib/ai/command-router";
+import { classifyError, ERROR_MESSAGES } from "@/lib/ai/error-handler";
 
 const aiCommandRequestSchema = z.object({
   boardId: z.string().uuid(),
@@ -166,10 +167,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       isTemplate: result.isTemplate,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.warn("[AI] Command failed:", message); // eslint-disable-line no-console
+    const rawMessage = err instanceof Error ? err.message : "Unknown error";
+    console.warn("[AI] Command failed:", rawMessage); // eslint-disable-line no-console
+    const category = classifyError(err);
+    const code = category === "service_unavailable" ? "SERVICE_UNAVAILABLE" : "LLM_ERROR";
     return NextResponse.json(
-      { success: false, error: `AI command failed: ${message}`, code: "LLM_ERROR" },
+      { success: false, error: ERROR_MESSAGES[category], code },
       { status: 500 }
     );
   }

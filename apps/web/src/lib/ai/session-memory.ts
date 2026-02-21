@@ -6,6 +6,7 @@ export interface SessionEntry {
 }
 
 export const TTL_MS: number = 5 * 60 * 1000;
+export const MAX_ENTRIES = 1000;
 
 const store = new Map<string, SessionEntry>();
 
@@ -24,7 +25,6 @@ export function getSession(userId: string, boardId: string): SessionEntry | null
 
 export function saveSession(userId: string, boardId: string, entry: SessionEntry): void {
   const key = `${userId}:${boardId}`;
-  store.set(key, entry);
 
   // Evict all stale entries
   const now = Date.now();
@@ -33,6 +33,30 @@ export function saveSession(userId: string, boardId: string, entry: SessionEntry
       store.delete(storeKey);
     }
   }
+
+  // Enforce entry cap — evict oldest if at capacity
+  while (store.size >= MAX_ENTRIES) {
+    let oldestKey: string | null = null;
+    let oldestTimestamp = Infinity;
+    for (const [storeKey, val] of store) {
+      if (val.timestamp < oldestTimestamp) {
+        oldestTimestamp = val.timestamp;
+        oldestKey = storeKey;
+      }
+    }
+    if (oldestKey) {
+      store.delete(oldestKey);
+    } else {
+      break;
+    }
+  }
+
+  store.set(key, entry);
+}
+
+/** @internal — for testing only */
+export function resetStore(): void {
+  store.clear();
 }
 
 export function resolveAnaphora(command: string, session: SessionEntry | null): string[] | null {

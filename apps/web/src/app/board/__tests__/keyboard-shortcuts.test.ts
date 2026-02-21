@@ -99,4 +99,46 @@ describe("createBoardKeyHandler", () => {
     expect(setSelectedIds).toHaveBeenCalledWith(["obj-1", "obj-2", "obj-3"]);
     expect(preventDefaultSpy).toHaveBeenCalled();
   });
+
+  it("Cmd+K calls onToggleAiBar", () => {
+    const onToggleAiBar = vi.fn();
+    const handler = createBoardKeyHandler({
+      editingId: null,
+      handleDelete: vi.fn(),
+      setSelectedIds: vi.fn(),
+      setActiveTool: vi.fn(),
+      objects: [],
+      onToggleAiBar,
+    });
+    handler(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
+    expect(onToggleAiBar).toHaveBeenCalledOnce();
+  });
+
+  it("Ctrl+K calls onToggleAiBar", () => {
+    const onToggleAiBar = vi.fn();
+    const handler = createBoardKeyHandler({
+      editingId: null,
+      handleDelete: vi.fn(),
+      setSelectedIds: vi.fn(),
+      setActiveTool: vi.fn(),
+      objects: [],
+      onToggleAiBar,
+    });
+    handler(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }));
+    expect(onToggleAiBar).toHaveBeenCalledOnce();
+  });
+
+  it("Cmd+K is ignored when editing text", () => {
+    const onToggleAiBar = vi.fn();
+    const handler = createBoardKeyHandler({
+      editingId: "some-id",
+      handleDelete: vi.fn(),
+      setSelectedIds: vi.fn(),
+      setActiveTool: vi.fn(),
+      objects: [],
+      onToggleAiBar,
+    });
+    handler(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
+    expect(onToggleAiBar).not.toHaveBeenCalled();
+  });
 });

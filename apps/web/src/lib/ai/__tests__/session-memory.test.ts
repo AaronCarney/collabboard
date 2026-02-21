@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { getSession, saveSession, resolveAnaphora } from "../session-memory";
+import {
+  getSession,
+  saveSession,
+  resolveAnaphora,
+  resetStore,
+  MAX_ENTRIES,
+} from "../session-memory";
 import type { SessionEntry } from "../session-memory";
 
 describe("getSession", () => {
@@ -244,5 +250,30 @@ describe("resolveAnaphora", () => {
     };
     const result = resolveAnaphora("Move IT to the right", session);
     expect(result).toEqual(["abc-456"]);
+  });
+});
+
+describe("session store entry cap", () => {
+  beforeEach(() => {
+    resetStore();
+  });
+
+  afterEach(() => {
+    resetStore();
+  });
+
+  it("evicts oldest entry when store exceeds MAX_ENTRIES", () => {
+    for (let i = 0; i < MAX_ENTRIES + 1; i++) {
+      saveSession(`user-${String(i)}`, "board-cap", {
+        lastCreatedIds: [],
+        lastModifiedIds: [],
+        lastCommandText: `cmd-${String(i)}`,
+        timestamp: Date.now() + i,
+      });
+    }
+    // The first entry (user-0) should have been evicted
+    expect(getSession("user-0", "board-cap")).toBeNull();
+    // The last entry should still exist
+    expect(getSession(`user-${String(MAX_ENTRIES)}`, "board-cap")).not.toBeNull();
   });
 });
