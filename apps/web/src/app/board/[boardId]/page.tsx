@@ -70,7 +70,9 @@ export default function BoardPage() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [aiBarVisible, setAiBarVisible] = useState(true);
   const [gridVisible, setGridVisible] = useState(true);
-  const [shareAccessLevel, setShareAccessLevel] = useState<"view" | "edit" | null>(null);
+  const [shareAccessLevel, setShareAccessLevel] = useState<"view" | "edit" | null>(
+    shareToken ? "view" : null
+  );
   const readOnly = isReadOnlyAccess(shareAccessLevel);
   const [hintDismissed, setHintDismissed] = useState(
     () =>
@@ -155,7 +157,7 @@ export default function BoardPage() {
   useUndoRedoKeyboard({
     undo: store.undo,
     redo: store.redo,
-    enabled: !store.editingId,
+    enabled: !store.editingId && !readOnly,
   });
 
   const lastCursorRef = useRef(0);
@@ -646,8 +648,8 @@ export default function BoardPage() {
           <PropertyPanel selectedObjects={selectedObjects} onUpdateObjects={handleUpdateObjects} />
         )}
 
-        {/* Text Editor Overlay */}
-        {editingObject && (
+        {/* Text Editor Overlay — hidden for read-only viewers */}
+        {!readOnly && editingObject && (
           <TextEditor
             object={editingObject}
             camera={store.camera}

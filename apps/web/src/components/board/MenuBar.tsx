@@ -77,7 +77,7 @@ export function MenuBar({
     {
       label: "Undo",
       shortcut: "Ctrl+Z",
-      disabled: !ctx.canUndo,
+      disabled: ctx.readOnly || !ctx.canUndo,
       onClick: () => {
         ctx.undo();
         setOpenMenu(null);
@@ -86,7 +86,7 @@ export function MenuBar({
     {
       label: "Redo",
       shortcut: "Ctrl+Shift+Z",
-      disabled: !ctx.canRedo,
+      disabled: ctx.readOnly || !ctx.canRedo,
       onClick: () => {
         ctx.redo();
         setOpenMenu(null);
@@ -100,6 +100,7 @@ export function MenuBar({
     {
       label: "Delete Selected",
       shortcut: "Del",
+      disabled: ctx.readOnly,
       onClick: () => {
         ctx.deleteSelected();
         setOpenMenu(null);
@@ -116,6 +117,7 @@ export function MenuBar({
     {
       label: "Paste",
       shortcut: "Ctrl+V",
+      disabled: ctx.readOnly,
       onClick: () => {
         ctx.pasteFromClipboard();
         setOpenMenu(null);
@@ -124,6 +126,7 @@ export function MenuBar({
     {
       label: "Duplicate",
       shortcut: "Ctrl+D",
+      disabled: ctx.readOnly,
       onClick: () => {
         ctx.duplicateSelected();
         setOpenMenu(null);
@@ -191,6 +194,7 @@ export function MenuBar({
       <input
         type="text"
         value={nameValue}
+        readOnly={ctx.readOnly}
         onChange={(e) => {
           setNameValue(e.target.value);
         }}
@@ -200,7 +204,11 @@ export function MenuBar({
             e.currentTarget.blur();
           }
         }}
-        className="text-sm font-semibold bg-transparent border border-transparent rounded px-2 py-1 hover:border-gray-300 focus:border-blue-500 focus:outline-none w-40 truncate"
+        className={`text-sm font-semibold bg-transparent border border-transparent rounded px-2 py-1 w-40 truncate ${
+          ctx.readOnly
+            ? "cursor-default"
+            : "hover:border-gray-300 focus:border-blue-500 focus:outline-none"
+        }`}
       />
 
       {/* Menu Triggers */}
@@ -253,13 +261,15 @@ export function MenuBar({
         </button>
       </div>
 
-      {/* Share Button */}
-      <button
-        onClick={onShareClick}
-        className="ml-2 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition"
-      >
-        Share
-      </button>
+      {/* Share Button — hidden for read-only viewers */}
+      {!ctx.readOnly && (
+        <button
+          onClick={onShareClick}
+          className="ml-2 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition"
+        >
+          Share
+        </button>
+      )}
 
       {/* User Menu */}
       <div className="ml-2">
