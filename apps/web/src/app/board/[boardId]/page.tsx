@@ -7,7 +7,7 @@ import type { BoardObject } from "@/types/board";
 import { boardObjectSchema } from "@collabboard/shared";
 import { showToast } from "@/lib/toast";
 import { useBoardStore } from "@/lib/board-store";
-import { createBoardKeyHandler } from "@/lib/board-keyboard";
+import { createBoardKeyHandler, isTextInputFocused } from "@/lib/board-keyboard";
 import { createClerkSupabaseClient, createRealtimeClient } from "@/lib/supabase";
 import { BoardCanvas } from "@/components/board/BoardCanvas";
 import { Sidebar } from "@/components/board/Sidebar";
@@ -261,7 +261,7 @@ export default function BoardPage() {
     });
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === "Space" && !store.editingId) {
+      if (e.code === "Space" && !store.editingId && !isTextInputFocused()) {
         e.preventDefault();
         setIsSpaceHeld(true);
         return;

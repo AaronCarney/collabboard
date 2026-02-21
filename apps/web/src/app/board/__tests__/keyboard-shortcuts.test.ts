@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { createBoardKeyHandler } from "@/lib/board-keyboard";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createBoardKeyHandler, isTextInputFocused } from "@/lib/board-keyboard";
 
 describe("createBoardKeyHandler", () => {
   it("does not switch tools on v/s/r/c/t or 1-5 keys", () => {
@@ -140,5 +140,49 @@ describe("createBoardKeyHandler", () => {
     });
     handler(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
     expect(onToggleAiBar).not.toHaveBeenCalled();
+  });
+});
+
+describe("isTextInputFocused", () => {
+  let input: HTMLInputElement;
+
+  beforeEach(() => {
+    input = document.createElement("input");
+    document.body.appendChild(input);
+  });
+
+  afterEach(() => {
+    input.remove();
+  });
+
+  it("returns true when an INPUT element is focused", () => {
+    input.focus();
+    expect(isTextInputFocused()).toBe(true);
+  });
+
+  it("returns true when a TEXTAREA element is focused", () => {
+    const textarea = document.createElement("textarea");
+    document.body.appendChild(textarea);
+    textarea.focus();
+
+    expect(isTextInputFocused()).toBe(true);
+
+    textarea.remove();
+  });
+
+  it("returns false when no text-entry element is focused", () => {
+    input.blur();
+    expect(isTextInputFocused()).toBe(false);
+  });
+
+  it("returns false when a non-input element is focused", () => {
+    const div = document.createElement("div");
+    div.tabIndex = 0;
+    document.body.appendChild(div);
+    div.focus();
+
+    expect(isTextInputFocused()).toBe(false);
+
+    div.remove();
   });
 });

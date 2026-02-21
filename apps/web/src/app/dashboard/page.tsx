@@ -50,6 +50,20 @@ export default function DashboardPage() {
     }
   }, [user, router, supabase]);
 
+  const deleteBoard = useCallback(
+    async (boardId: string) => {
+      if (!window.confirm("Delete this board? This cannot be undone.")) return;
+      const { error } = await supabase.from("boards").delete().eq("id", boardId);
+      if (error) {
+        showToast("Failed to delete board", "error");
+        return;
+      }
+      setBoards((prev) => prev.filter((b) => b.id !== boardId));
+      showToast("Board deleted", "info");
+    },
+    [supabase]
+  );
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between">
@@ -79,18 +93,35 @@ export default function DashboardPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {boards.map((board) => (
-              <button
+              <div
                 key={board.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => {
                   router.push(`/board/${board.id}`);
                 }}
-                className="bg-white border rounded-lg p-4 text-left hover:shadow-md transition"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    router.push(`/board/${board.id}`);
+                  }
+                }}
+                className="relative bg-white border rounded-lg p-4 text-left hover:shadow-md transition cursor-pointer"
               >
+                <button
+                  aria-label="Delete board"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void deleteBoard(board.id);
+                  }}
+                  className="absolute top-2 right-2 text-gray-400 hover:text-red-500 text-sm leading-none"
+                >
+                  ×
+                </button>
                 <h3 className="font-medium truncate">{board.name}</h3>
                 <p className="text-xs text-gray-400 mt-1">
                   {new Date(board.updated_at).toLocaleDateString()}
                 </p>
-              </button>
+              </div>
             ))}
           </div>
         )}

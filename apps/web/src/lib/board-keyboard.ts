@@ -13,9 +13,16 @@ export interface KeyHandlerDeps {
   onToggleAiBar?: () => void;
 }
 
+/** Returns true when a text-entry element (INPUT or TEXTAREA) has focus. */
+export function isTextInputFocused(): boolean {
+  const tag = document.activeElement?.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA";
+}
+
 export function createBoardKeyHandler(deps: KeyHandlerDeps): (e: KeyboardEvent) => void {
   return (e: KeyboardEvent) => {
     if (deps.editingId) return;
+    if (isTextInputFocused()) return;
 
     if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
