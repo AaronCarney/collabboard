@@ -4,6 +4,7 @@ import type { BoardObject } from "@collabboard/shared";
 import { matchTemplate, generateTemplate } from "./templates";
 import { buildSystemPrompt } from "./system-prompt";
 import { instrument } from "./observability/instrument";
+import { validateToolCallArgs } from "./validation";
 import {
   getToolDefinitions,
   executeCreateStickyNote,
@@ -13,7 +14,10 @@ import {
   executeResizeObject,
   executeUpdateText,
   executeChangeColor,
+  executeCreateConnector,
+  executeDeleteObject,
 } from "./tools";
+import type { DeletionMarker } from "./tools";
 
 export interface CommandInput {
   command: string;
@@ -26,6 +30,7 @@ export interface CommandInput {
 export interface CommandResult {
   success: boolean;
   objects: BoardObject[];
+  deletedIds?: string[];
   message: string;
   tokensUsed: number;
   latencyMs: number;
@@ -85,25 +90,28 @@ async function routeToLlm(
     system: systemPrompt,
     prompt: input.command,
     tools,
-    stopWhen: stepCountIs(5),
+    stopWhen: stepCountIs(20),
   });
 
-  // Process tool calls into BoardObjects
+  // Process tool calls into BoardObjects and DeletionMarkers
   const objects: BoardObject[] = [];
+  const deletedIds: string[] = [];
 
   for (const toolCall of result.toolCalls) {
-    const obj = executeToolCall(
+    const callResult = executeToolCall(
       toolCall.toolName,
       toolCall.input as Record<string, unknown>,
       input.boardId,
       input.userId,
       input.existingObjects
     );
-    if (obj) {
-      if (Array.isArray(obj)) {
-        objects.push(...obj);
+    if (callResult) {
+      if (Array.isArray(callResult)) {
+        objects.push(...callResult);
+      } else if (isDeletionMarker(callResult)) {
+        deletedIds.push(callResult.objectId);
       } else {
-        objects.push(obj);
+        objects.push(callResult);
       }
     }
   }
@@ -127,11 +135,21 @@ async function routeToLlm(
   return {
     success: true,
     objects,
+    deletedIds: deletedIds.length > 0 ? deletedIds : undefined,
     message: `Executed ${String(result.toolCalls.length)} action(s) via AI`,
     tokensUsed,
     latencyMs,
     isTemplate: false,
   };
+}
+
+function isDeletionMarker(value: unknown): value is DeletionMarker {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    (value as Record<string, unknown>).type === "deletion"
+  );
 }
 
 function executeToolCall(
@@ -140,7 +158,17 @@ function executeToolCall(
   boardId: string,
   userId: string,
   existingObjects: BoardObject[]
-): BoardObject | BoardObject[] | null {
+): BoardObject | BoardObject[] | DeletionMarker | null {
+  // Validate and clamp args before executing
+  const validation = validateToolCallArgs(toolName, args, existingObjects);
+  if (!validation.valid) {
+    return null;
+  }
+  if (validation.clamped.length > 0) {
+    // eslint-disable-next-line no-console
+    console.warn(`Tool "${toolName}" had clamped values: ${validation.clamped.join(", ")}`);
+  }
+
   switch (toolName) {
     case "createStickyNote":
       return executeCreateStickyNote(
@@ -165,6 +193,18 @@ function executeToolCall(
       return executeChangeColor(args as Parameters<typeof executeChangeColor>[0], existingObjects);
     case "getBoardState":
       return existingObjects;
+    case "create_connector":
+      return executeCreateConnector(
+        args as Parameters<typeof executeCreateConnector>[0],
+        boardId,
+        userId,
+        existingObjects
+      );
+    case "delete_object":
+      return executeDeleteObject(
+        args as Parameters<typeof executeDeleteObject>[0],
+        existingObjects
+      );
     default:
       return null;
   }

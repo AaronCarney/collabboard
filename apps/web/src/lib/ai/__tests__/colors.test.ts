@@ -103,4 +103,24 @@ describe("resolveColor", () => {
   it("rejects an invalid 5-digit hex and falls back to type default", () => {
     expect(resolveColor("#FFFFF", "sticky_note")).toBe("#FFEB3B");
   });
+
+  it("falls back to FALLBACK_COLOR (#FFEB3B) for unknown objectType with no palette match", () => {
+    expect(resolveColor(undefined as unknown as string, "connector")).toBe("#FFEB3B");
+  });
+
+  it("falls back to FALLBACK_COLOR (#FFEB3B) for 'line' objectType with invalid color name", () => {
+    expect(resolveColor("nonexistent", "line")).toBe("#FFEB3B");
+  });
+
+  it("falls back to FALLBACK_COLOR (#FFEB3B) for an empty objectType string", () => {
+    expect(resolveColor(undefined as unknown as string, "")).toBe("#FFEB3B");
+  });
+
+  it("passes through a valid 3-digit hex string unchanged", () => {
+    expect(resolveColor("#F00", "sticky_note")).toBe("#F00");
+  });
+
+  it("passes through a valid 8-digit hex string unchanged", () => {
+    expect(resolveColor("#FF0000FF", "sticky_note")).toBe("#FF0000FF");
+  });
 });
