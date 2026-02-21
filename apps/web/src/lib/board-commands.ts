@@ -21,6 +21,7 @@ const HISTORY_CAP = 50;
 
 export interface CommandHistory {
   execute(cmd: UndoableCommand): void;
+  pushWithoutExecuting(cmd: UndoableCommand): void;
   undo(): void;
   redo(): void;
   canUndo(): boolean;
@@ -35,6 +36,13 @@ export function createCommandHistory(): CommandHistory {
   return {
     execute(cmd: UndoableCommand) {
       cmd.execute();
+      past.push(cmd);
+      future.length = 0;
+      if (past.length > HISTORY_CAP) {
+        past.shift();
+      }
+    },
+    pushWithoutExecuting(cmd: UndoableCommand) {
       past.push(cmd);
       future.length = 0;
       if (past.length > HISTORY_CAP) {

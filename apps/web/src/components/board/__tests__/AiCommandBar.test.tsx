@@ -78,6 +78,23 @@ describe("AiCommandBar — Escape key closes the bar", () => {
     fireEvent.keyDown(input, { key: "Escape" });
     expect(onClose).toHaveBeenCalledOnce();
   });
+
+  it("pressing Escape does not crash when onClose is not provided", () => {
+    render(<AiCommandBar onSubmit={vi.fn()} isLoading={false} />);
+    const input = screen.getByPlaceholderText("Type / for AI commands...");
+    expect(() => {
+      fireEvent.keyDown(input, { key: "Escape" });
+    }).not.toThrow();
+  });
+
+  it("onClose is not called when other keys are pressed", () => {
+    const onClose = vi.fn();
+    render(<AiCommandBar onSubmit={vi.fn()} isLoading={false} onClose={onClose} />);
+    const input = screen.getByPlaceholderText("Type / for AI commands...");
+    fireEvent.keyDown(input, { key: "a" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
 
 describe("AiCommandBar — auto-focus on open", () => {

@@ -93,4 +93,86 @@ describe("enqueueForUser", () => {
     });
     expect(result).toBe("clean");
   });
+
+  it("three sequential commands for same user preserve order across all three", async () => {
+    const order: string[] = [];
+
+    const first = enqueueForUser("user-seq3", async () => {
+      order.push("first-start");
+      await new Promise((resolve) => {
+        setTimeout(resolve, 30);
+      });
+      order.push("first-end");
+      return "first";
+    });
+
+    const second = enqueueForUser("user-seq3", async () => {
+      order.push("second-start");
+      await new Promise((resolve) => {
+        setTimeout(resolve, 10);
+      });
+      order.push("second-end");
+      return "second";
+    });
+
+    const third = enqueueForUser("user-seq3", () => {
+      order.push("third-start");
+      order.push("third-end");
+      return Promise.resolve("third");
+    });
+
+    const results = await Promise.all([first, second, third]);
+
+    expect(results).toEqual(["first", "second", "third"]);
+    expect(order.indexOf("first-end")).toBeLessThan(order.indexOf("second-start"));
+    expect(order.indexOf("second-end")).toBeLessThan(order.indexOf("third-start"));
+  });
+
+  it("synchronously throwing fn propagates error and does not block queue", async () => {
+    const throwing = enqueueForUser("user-sync-throw", () => {
+      throw new Error("sync-boom");
+    });
+
+    await expect(throwing).rejects.toThrow("sync-boom");
+
+    // Queue should not be blocked after the sync throw
+    const result = await enqueueForUser("user-sync-throw", () => {
+      return Promise.resolve("after-sync-throw");
+    });
+    expect(result).toBe("after-sync-throw");
+  });
+
+  it("concurrent enqueues from 5+ different users all run in parallel", async () => {
+    const startTimes: number[] = [];
+    const endTimes: number[] = [];
+    const userCount = 6;
+
+    const promises = Array.from({ length: userCount }, (_, i) =>
+      enqueueForUser(`parallel-user-${String(i)}`, async () => {
+        startTimes.push(Date.now());
+        await new Promise((resolve) => {
+          setTimeout(resolve, 40);
+        });
+        endTimes.push(Date.now());
+        return i;
+      })
+    );
+
+    const results = await Promise.all(promises);
+
+    expect(results).toEqual([0, 1, 2, 3, 4, 5]);
+
+    // All users should have started before any has ended (parallel execution)
+    const lastStart = Math.max(...startTimes);
+    const firstEnd = Math.min(...endTimes);
+    expect(lastStart).toBeLessThan(firstEnd);
+  });
+
+  it("fn that returns undefined resolves without error", async () => {
+    await expect(
+      enqueueForUser("user-undefined", () => {
+        return Promise.resolve(undefined);
+      })
+    ).resolves.toBeUndefined();
+  });
 });

@@ -67,6 +67,69 @@ describe("classifyError", () => {
     const err = new Error("something went wrong");
     expect(classifyError(err)).toBe("execution_error");
   });
+
+  // ─────────────────────────────────────────────────────────────
+  // classifyError — non-Error thrown values
+  // ─────────────────────────────────────────────────────────────
+
+  it("returns 'execution_error' when a string is thrown", () => {
+    expect(classifyError("something went wrong")).toBe("execution_error");
+  });
+
+  it("returns 'execution_error' when a number is thrown", () => {
+    expect(classifyError(42)).toBe("execution_error");
+  });
+
+  it("returns 'execution_error' when null is thrown", () => {
+    expect(classifyError(null)).toBe("execution_error");
+  });
+
+  it("returns 'execution_error' when undefined is thrown", () => {
+    expect(classifyError(undefined)).toBe("execution_error");
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // classifyError — client errors (4xx, not 429)
+  // ─────────────────────────────────────────────────────────────
+
+  it("returns 'execution_error' for HTTP 499 (client error, not rate-limit)", () => {
+    const err = Object.assign(new Error("client closed request"), {
+      status: 499,
+    });
+    expect(classifyError(err)).toBe("execution_error");
+  });
+
+  it("returns 'execution_error' for HTTP 400 (bad request)", () => {
+    const err = Object.assign(new Error("bad request"), { status: 400 });
+    expect(classifyError(err)).toBe("execution_error");
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // classifyError — all-success tool call results
+  // ─────────────────────────────────────────────────────────────
+
+  it("returns 'execution_error' (not 'partial_failure') when all tool calls succeed", () => {
+    const err = new Error("unexpected");
+    const toolCallResults = [
+      { success: true, toolName: "createStickyNote" },
+      { success: true, toolName: "moveObject" },
+    ];
+    expect(classifyError(err, toolCallResults)).toBe("execution_error");
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // classifyError — toolCallResults undefined vs empty array
+  // ─────────────────────────────────────────────────────────────
+
+  it("returns 'execution_error' when toolCallResults is undefined", () => {
+    const err = new Error("no tool results");
+    expect(classifyError(err, undefined)).toBe("execution_error");
+  });
+
+  it("returns 'no_understand' when toolCallResults is an empty array", () => {
+    const err = new Error("no tools generated");
+    expect(classifyError(err, [])).toBe("no_understand");
+  });
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -84,7 +147,6 @@ describe("ERROR_MESSAGES", () => {
 
   it("has an entry for every AIErrorCategory", () => {
     for (const category of ALL_CATEGORIES) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       expect(ERROR_MESSAGES).toHaveProperty(category);
     }
   });
@@ -101,7 +163,6 @@ describe("ERROR_MESSAGES", () => {
     for (const category of ALL_CATEGORIES) {
       const msg = ERROR_MESSAGES[category];
       // Messages should be longer than just the category slug
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       expect(msg.length).toBeGreaterThan(category.length);
     }
   });
