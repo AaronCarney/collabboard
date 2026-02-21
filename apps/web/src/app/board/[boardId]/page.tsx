@@ -2,10 +2,19 @@
 
 import { useEffect, useCallback, useRef, useMemo, useState } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import type { BoardObject } from "@/types/board";
-import { boardObjectSchema } from "@collabboard/shared";
+import type { ToolType, PortName, ObjectType } from "@collabboard/shared";
+import { boardObjectSchema, OBJECT_DEFAULTS } from "@collabboard/shared";
 import { showToast } from "@/lib/toast";
+import { computeFitToScreen } from "@/lib/view-controls";
+import {
+  createLineObject,
+  createLineObjectQuickClick,
+  createConnectorObject,
+  computeDragBounds,
+} from "@/lib/canvas-drawing-utils";
+import { validateShareToken, isReadOnlyAccess } from "@/lib/share-access";
 import { useBoardStore } from "@/lib/board-store";
 import { createBoardKeyHandler, isTextInputFocused } from "@/lib/board-keyboard";
 import { createClerkSupabaseClient, createRealtimeClient } from "@/lib/supabase";
@@ -51,12 +60,18 @@ export default function BoardPage() {
     realtimeSupabase
   );
 
+  const searchParams = useSearchParams();
+  const shareToken = searchParams.get("share");
+
   // Space key tracking for pan
   const [isSpaceHeld, setIsSpaceHeld] = useState(false);
   const [boardName, setBoardName] = useState("Untitled Board");
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [aiBarVisible, setAiBarVisible] = useState(true);
+  const [gridVisible, setGridVisible] = useState(true);
+  const [shareAccessLevel, setShareAccessLevel] = useState<"view" | "edit" | null>(null);
+  const readOnly = isReadOnlyAccess(shareAccessLevel);
   const [hintDismissed, setHintDismissed] = useState(
     () =>
       typeof window !== "undefined" && localStorage.getItem("collabboard:hint-dismissed") === "true"
@@ -90,6 +105,19 @@ export default function BoardPage() {
         setBoardName(result.data.name);
       });
   }, [user, supabase, boardId, router]);
+
+  // Validate share token if present
+  useEffect(() => {
+    if (!shareToken) return;
+    void validateShareToken(shareToken, fetch).then((result) => {
+      if (result.valid) {
+        setShareAccessLevel(result.accessLevel);
+      } else {
+        showToast("Invalid or expired share link", "error");
+        router.push("/dashboard");
+      }
+    });
+  }, [shareToken, router]);
 
   // Debounced save of board name to DB
   const handleBoardNameChange = useCallback(
@@ -148,16 +176,71 @@ export default function BoardPage() {
 
   const handleCanvasClick = useCallback(
     (wx: number, wy: number) => {
+      if (readOnly) return;
+      // Canvas click is now only a fallback — drawing tools go through handleDrawCreate
       if (
         store.activeTool !== "select" &&
         store.activeTool !== "pan" &&
-        store.activeTool !== "connector"
+        store.activeTool !== "connector" &&
+        store.activeTool !== "line"
       ) {
         void store.createObject(store.activeTool, wx, wy);
         store.setActiveTool("select");
       }
     },
-    [store.activeTool, store.createObject, store.setActiveTool]
+    [store.activeTool, store.createObject, store.setActiveTool, readOnly]
+  );
+
+  const handleDrawCreate = useCallback(
+    (tool: ToolType, startX: number, startY: number, endX: number, endY: number) => {
+      if (readOnly) return;
+      const userId = user?.id ?? "";
+
+      if (tool === "line") {
+        const dx = endX - startX;
+        const dy = endY - startY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const lineObj =
+          dist < 5
+            ? createLineObjectQuickClick({ x: startX, y: startY, boardId, userId })
+            : createLineObject({ startX, startY, endX, endY, boardId, userId });
+        store.mutate([lineObj]);
+      } else if (tool !== "select" && tool !== "pan" && tool !== "connector") {
+        // Shape tools: compute drag bounds
+        const objectType: ObjectType = tool;
+        const toolDefaults = OBJECT_DEFAULTS[objectType];
+        const defaultW = typeof toolDefaults.width === "number" ? toolDefaults.width : 200;
+        const defaultH = typeof toolDefaults.height === "number" ? toolDefaults.height : 150;
+        const bounds = computeDragBounds({
+          startX,
+          startY,
+          endX,
+          endY,
+          defaults: { width: defaultW, height: defaultH },
+        });
+        void store.createObject(objectType, bounds.x, bounds.y, bounds.width, bounds.height);
+      }
+      store.setActiveTool("select");
+    },
+    [boardId, user?.id, store.mutate, store.createObject, store.setActiveTool, readOnly]
+  );
+
+  const handleConnectorCreate = useCallback(
+    (sourceId: string, sourcePort: PortName, targetId: string, targetPort: PortName) => {
+      if (readOnly) return;
+      const userId = user?.id ?? "";
+      const connectorObj = createConnectorObject({
+        sourceId,
+        sourcePort,
+        targetId,
+        targetPort,
+        boardId,
+        userId,
+      });
+      store.mutate([connectorObj]);
+      store.setActiveTool("select");
+    },
+    [boardId, user?.id, store.mutate, store.setActiveTool, readOnly]
   );
 
   const handleObjectSelect = useCallback(
@@ -458,12 +541,21 @@ export default function BoardPage() {
         store.setCamera((prev) => ({ ...prev, zoom: z }));
       },
       fitToScreen: () => {
-        store.setCamera({ x: 0, y: 0, zoom: 1 });
+        const canvas = document.querySelector("canvas");
+        const vw = canvas?.clientWidth ?? window.innerWidth;
+        const vh = canvas?.clientHeight ?? window.innerHeight;
+        const cam = computeFitToScreen(store.objects, vw, vh);
+        store.setCamera(cam);
       },
       deleteSelected: handleDelete,
       duplicateSelected: handleDuplicate,
       copySelected: handleCopy,
       pasteFromClipboard: handlePaste,
+      gridVisible,
+      toggleGrid: () => {
+        setGridVisible((prev) => !prev);
+      },
+      readOnly,
     }),
     [
       store.activeTool,
@@ -475,10 +567,13 @@ export default function BoardPage() {
       store.canRedo,
       store.camera.zoom,
       store.setCamera,
+      store.objects,
       handleDelete,
       handleDuplicate,
       handleCopy,
       handlePaste,
+      gridVisible,
+      readOnly,
     ]
   );
 
@@ -520,6 +615,7 @@ export default function BoardPage() {
           activeTool={store.activeTool}
           isSpaceHeld={isSpaceHeld}
           cursors={store.cursors}
+          gridVisible={gridVisible}
           onCanvasClick={handleCanvasClick}
           onObjectSelect={handleObjectSelect}
           onObjectClick={handleObjectClick}
@@ -530,6 +626,8 @@ export default function BoardPage() {
           onPan={handlePan}
           onZoom={handleZoom}
           onCursorMove={handleCursorMove}
+          onDrawCreate={handleDrawCreate}
+          onConnectorCreate={handleConnectorCreate}
         />
 
         {/* Property Panel */}

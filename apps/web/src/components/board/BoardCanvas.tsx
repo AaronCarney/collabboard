@@ -2,7 +2,8 @@
 
 import { useRef, useEffect, useCallback, useState } from "react";
 import type { BoardObject, CursorPosition } from "@/types/board";
-import type { ToolType } from "@collabboard/shared";
+import type { ToolType, PortName } from "@collabboard/shared";
+import { getNearestPort } from "@/lib/canvas-drawing-utils";
 import { degreesToRadians } from "@/lib/transforms";
 import type { Camera } from "@/lib/board-store";
 import type { HandlePosition, SelectionRect } from "@/lib/board-logic";
@@ -26,6 +27,7 @@ interface BoardCanvasProps {
   activeTool: ToolType;
   isSpaceHeld: boolean;
   cursors: Map<string, CursorPosition>;
+  gridVisible: boolean;
   onCanvasClick: (worldX: number, worldY: number) => void;
   onObjectSelect: (id: string | null, additive: boolean) => void;
   onObjectClick: (id: string) => void;
@@ -39,6 +41,19 @@ interface BoardCanvasProps {
   onPan: (dx: number, dy: number) => void;
   onZoom: (delta: number, cx: number, cy: number) => void;
   onCursorMove: (worldX: number, worldY: number) => void;
+  onDrawCreate?: (
+    tool: ToolType,
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number
+  ) => void;
+  onConnectorCreate?: (
+    sourceId: string,
+    sourcePort: PortName,
+    targetId: string,
+    targetPort: PortName
+  ) => void;
 }
 
 const HANDLE_SIZE = 8;
@@ -54,6 +69,7 @@ export function BoardCanvas({
   activeTool,
   isSpaceHeld,
   cursors,
+  gridVisible,
   onCanvasClick,
   onObjectSelect,
   onObjectClick,
@@ -64,6 +80,8 @@ export function BoardCanvas({
   onPan,
   onZoom,
   onCursorMove,
+  onDrawCreate,
+  onConnectorCreate,
 }: BoardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -84,6 +102,11 @@ export function BoardCanvas({
   const [resizeObjId, setResizeObjId] = useState<string | null>(null);
   const clickedSelectedIdRef = useRef<string | null>(null);
   const draggedObjIdRef = useRef<string | null>(null);
+  // Drawing state for click-and-drag shape/line/connector creation
+  const [isDrawingShape, setIsDrawingShape] = useState(false);
+  const [drawStartWorld, setDrawStartWorld] = useState<{ x: number; y: number } | null>(null);
+  const drawToolRef = useRef<ToolType | null>(null);
+  const connectorSourceRef = useRef<{ id: string; port: PortName } | null>(null);
   const animFrameRef = useRef<number>(0);
   const lastResizeBroadcast = useRef(0);
 
@@ -138,8 +161,10 @@ export function BoardCanvas({
     ctx.translate(camera.x, camera.y);
     ctx.scale(camera.zoom, camera.zoom);
 
-    // Grid
-    drawGrid(ctx, camera, w, h);
+    // Grid (conditionally drawn)
+    if (gridVisible) {
+      drawGrid(ctx, camera, w, h);
+    }
 
     // Wire connector renderer's object resolver before render pass
     const objMap = objectsMapRef.current;
@@ -196,7 +221,7 @@ export function BoardCanvas({
     }
 
     ctx.restore();
-  }, [objects, camera, selectedIds, cursors, selectionRect]);
+  }, [objects, camera, selectedIds, cursors, selectionRect, gridVisible]);
 
   // Dirty-flag rendering: only render when state changes, not every frame
   const dirtyRef = useRef(true);
@@ -279,6 +304,27 @@ export function BoardCanvas({
             return;
           }
         }
+      }
+
+      // Drawing tools: line, connector, shapes
+      const isCreationTool = activeTool !== "select" && activeTool !== "pan";
+      if (isCreationTool) {
+        setIsDrawingShape(true);
+        setDrawStartWorld({ x: world.x, y: world.y });
+        setDragStart({ x: e.clientX, y: e.clientY });
+        drawToolRef.current = activeTool;
+
+        // For connector tool, find the source object
+        if (activeTool === "connector") {
+          const connHit = hitTest(world.x, world.y);
+          if (connHit) {
+            const port = getNearestPort(connHit, world.x, world.y);
+            connectorSourceRef.current = { id: connHit.id, port };
+          } else {
+            connectorSourceRef.current = null;
+          }
+        }
+        return;
       }
 
       const hit = hitTest(world.x, world.y);
@@ -440,6 +486,49 @@ export function BoardCanvas({
         return;
       }
 
+      // Drawing tools: finalize shape/line/connector creation
+      if (isDrawingShape && drawStartWorld && drawToolRef.current) {
+        const rect2 = canvasRef.current?.getBoundingClientRect();
+        if (rect2) {
+          const sx2 = e.clientX - rect2.left;
+          const sy2 = e.clientY - rect2.top;
+          const endWorld = screenToWorld(sx2, sy2);
+          const tool = drawToolRef.current;
+
+          if (tool === "connector" && onConnectorCreate) {
+            // Connector: need source and target objects
+            const source = connectorSourceRef.current;
+            if (source) {
+              const targetHit = hitTest(endWorld.x, endWorld.y);
+              if (targetHit && targetHit.id !== source.id) {
+                const targetPort = getNearestPort(targetHit, endWorld.x, endWorld.y);
+                onConnectorCreate(source.id, source.port, targetHit.id, targetPort);
+              }
+            }
+            setIsDrawingShape(false);
+            setDrawStartWorld(null);
+            drawToolRef.current = null;
+            connectorSourceRef.current = null;
+            return;
+          }
+
+          if (onDrawCreate) {
+            onDrawCreate(tool, drawStartWorld.x, drawStartWorld.y, endWorld.x, endWorld.y);
+            setIsDrawingShape(false);
+            setDrawStartWorld(null);
+            drawToolRef.current = null;
+            connectorSourceRef.current = null;
+            return;
+          }
+        }
+
+        setIsDrawingShape(false);
+        setDrawStartWorld(null);
+        drawToolRef.current = null;
+        connectorSourceRef.current = null;
+        // Fall through to onCanvasClick if onDrawCreate is not provided
+      }
+
       if (!isDragging && !isPanning && !isSelecting) {
         // Click on empty space with a creation tool
         const rect = canvasRef.current?.getBoundingClientRect();
@@ -484,10 +573,15 @@ export function BoardCanvas({
       isPanning,
       isSelecting,
       isResizing,
+      isDrawingShape,
+      drawStartWorld,
       selectedIds,
       selectionRect,
       screenToWorld,
+      hitTest,
       onCanvasClick,
+      onDrawCreate,
+      onConnectorCreate,
       objects,
       onObjectsMove,
       onObjectClick,
@@ -549,6 +643,10 @@ export function BoardCanvas({
           setResizeHandle(null);
           setResizeObjStart(null);
           setResizeObjId(null);
+          setIsDrawingShape(false);
+          setDrawStartWorld(null);
+          drawToolRef.current = null;
+          connectorSourceRef.current = null;
           draggedObjIdRef.current = null;
           dragStartPositionsRef.current = new Map();
         }}

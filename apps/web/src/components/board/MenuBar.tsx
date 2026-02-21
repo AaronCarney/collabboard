@@ -155,7 +155,13 @@ export function MenuBar({
         setOpenMenu(null);
       },
     },
-    { label: "Toggle Grid", onClick: closeMenu },
+    {
+      label: ctx.gridVisible ? "Hide Grid" : "Show Grid",
+      onClick: () => {
+        ctx.toggleGrid();
+        setOpenMenu(null);
+      },
+    },
     {
       label: "Keyboard Shortcuts",
       shortcut: "?",

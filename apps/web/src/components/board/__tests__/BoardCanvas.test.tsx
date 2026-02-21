@@ -78,6 +78,7 @@ function defaultProps(overrides: Partial<React.ComponentProps<typeof BoardCanvas
     onPan: vi.fn(),
     onZoom: vi.fn(),
     onCursorMove: vi.fn(),
+    gridVisible: true,
     ...overrides,
   };
 }

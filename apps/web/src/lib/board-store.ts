@@ -361,7 +361,7 @@ export function useBoardStore(
   );
 
   const createObject = useCallback(
-    async (type: ObjectType, x: number, y: number) => {
+    async (type: ObjectType, x: number, y: number, width?: number, height?: number) => {
       const defaults = OBJECT_DEFAULTS[type];
       const obj = {
         id: uuidv4(),
@@ -369,8 +369,8 @@ export function useBoardStore(
         type,
         x,
         y,
-        width: defaults.width ?? 200,
-        height: defaults.height ?? 200,
+        width: width ?? defaults.width,
+        height: height ?? defaults.height,
         rotation: 0,
         content: defaults.content ?? "",
         color: defaults.color ?? "#FFEB3B",

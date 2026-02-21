@@ -30,6 +30,9 @@ function createMockContext(overrides: Partial<BoardContextValue> = {}): BoardCon
     duplicateSelected: vi.fn(),
     copySelected: vi.fn(),
     pasteFromClipboard: vi.fn(),
+    gridVisible: true,
+    toggleGrid: vi.fn(),
+    readOnly: false,
     ...overrides,
   };
 }
@@ -120,7 +123,7 @@ describe("MenuBar", () => {
     expect(screen.getByText("Zoom In")).toBeInTheDocument();
     expect(screen.getByText("Zoom Out")).toBeInTheDocument();
     expect(screen.getByText("Fit to Screen")).toBeInTheDocument();
-    expect(screen.getByText("Toggle Grid")).toBeInTheDocument();
+    expect(screen.getByText("Hide Grid")).toBeInTheDocument();
   });
 
   it("renders Share button", () => {

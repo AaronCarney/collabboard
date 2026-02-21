@@ -18,6 +18,9 @@ export interface BoardContextValue {
   duplicateSelected: () => void;
   copySelected: () => void;
   pasteFromClipboard: () => void;
+  gridVisible: boolean;
+  toggleGrid: () => void;
+  readOnly: boolean;
 }
 
 export const BoardContext = createContext<BoardContextValue | null>(null);
