@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { BoardObject } from "@/types/board";
 import { clsx } from "clsx";
 
@@ -32,6 +33,8 @@ function hasTextContent(obj: BoardObject): boolean {
   return obj.type === "text" || obj.type === "sticky_note";
 }
 
+const STROKE_WIDTHS = [1, 2, 3, 5, 8];
+
 export function PropertyPanel({
   selectedObjects,
   onUpdateObjects,
@@ -39,6 +42,8 @@ export function PropertyPanel({
   const ids = selectedObjects.map((o) => o.id);
   const colors = new Set(selectedObjects.map((o) => o.color));
   const currentColor = colors.size === 1 ? [...colors][0] : null;
+
+  const [hexInput, setHexInput] = useState(currentColor ?? "");
 
   const showFontControls = selectedObjects.some(hasTextContent);
 
@@ -51,6 +56,15 @@ export function PropertyPanel({
 
   return (
     <div className="absolute bottom-4 right-4 z-50 bg-white rounded-xl shadow-lg border p-3 w-56">
+      {/* Drag Handle */}
+      <div
+        data-testid="property-panel-drag-handle"
+        className="flex justify-center mb-2"
+        style={{ cursor: "grab" }}
+      >
+        <div className="w-8 h-1 bg-gray-300 rounded-full" />
+      </div>
+
       {/* Header */}
       <div className="text-xs font-medium text-gray-500 mb-2">
         {selectedObjects.length === 1
@@ -76,7 +90,63 @@ export function PropertyPanel({
           />
         ))}
       </div>
-      {colors.size > 1 && <div className="text-xs text-gray-400 mb-3 italic">Mixed colors</div>}
+      {colors.size > 1 && <div className="text-xs text-gray-400 mb-2 italic">Mixed colors</div>}
+
+      {/* Hex Color Input */}
+      <input
+        type="text"
+        placeholder="#000000"
+        value={hexInput}
+        onChange={(e) => {
+          setHexInput(e.target.value);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && /^#[0-9a-fA-F]{6}$/.test(hexInput)) {
+            onUpdateObjects(ids, { color: hexInput });
+          }
+        }}
+        className="w-full text-sm border rounded px-2 py-1 text-gray-700 mb-3"
+      />
+
+      {/* Stroke Section */}
+      <div className="text-xs font-medium text-gray-500 mb-1">Stroke</div>
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {COLOR_SWATCHES.map((color) => (
+          <button
+            key={color}
+            onClick={() => {
+              onUpdateObjects(ids, { color });
+            }}
+            className={clsx(
+              "w-7 h-7 rounded-md border-2 transition-transform hover:scale-110",
+              currentColor === color ? "border-gray-800 scale-110" : "border-gray-200"
+            )}
+            style={{ backgroundColor: color }}
+            aria-label={`Stroke color ${color}`}
+          />
+        ))}
+      </div>
+
+      {/* Stroke Width */}
+      <div className="mb-3">
+        <label
+          htmlFor="stroke-width-select"
+          className="text-xs font-medium text-gray-500 block mb-1"
+        >
+          Line Width
+        </label>
+        <select
+          id="stroke-width-select"
+          aria-label="Line Width"
+          className="w-full text-sm border rounded px-2 py-1 text-gray-700"
+        >
+          {STROKE_WIDTHS.map((w) => (
+            <option key={w} value={w}>
+              {w}px
+            </option>
+          ))}
+        </select>
+      </div>
 
       {/* Opacity Slider */}
       <div className="mb-3">
