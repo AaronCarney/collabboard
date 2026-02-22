@@ -8,8 +8,8 @@ export interface ValidationResult {
 
 const MIN_DIMENSION = 10;
 const MAX_DIMENSION = 5000;
-const MIN_POSITION = -50000;
-const MAX_POSITION = 50000;
+export const MIN_POSITION = -50000;
+export const MAX_POSITION = 50000;
 
 function clampAndTrack(
   args: Record<string, unknown>,

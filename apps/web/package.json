@@ -22,6 +22,7 @@
     "@clerk/nextjs": "^6",
     "@collabboard/db": "workspace:*",
     "@collabboard/shared": "workspace:*",
+    "@dagrejs/dagre": "^2.0.4",
     "@supabase/supabase-js": "^2",
     "ai": "6.0.91",
     "autoprefixer": "^10.4.24",
@@ -37,6 +38,7 @@
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.19",
+    "@types/dagre": "^0.7.53",
     "@types/uuid": "^11.0.0"
   }
 }
