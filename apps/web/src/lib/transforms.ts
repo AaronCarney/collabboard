@@ -1,4 +1,5 @@
 import type { BoardObject } from "@collabboard/shared";
+import { boardObjectSchema } from "@collabboard/shared";
 import type { MutationPipeline, UndoableCommand } from "./board-commands";
 import { v4 as uuidv4 } from "uuid";
 
@@ -47,7 +48,7 @@ export function deserializeClipboard(json: string): BoardObject[] {
   try {
     const parsed: unknown = JSON.parse(json);
     if (!Array.isArray(parsed)) return [];
-    return parsed as BoardObject[];
+    return parsed.filter((item): item is BoardObject => boardObjectSchema.safeParse(item).success);
   } catch {
     return [];
   }
@@ -55,17 +56,48 @@ export function deserializeClipboard(json: string): BoardObject[] {
 
 /**
  * Create duplicates of objects with new IDs and offset positions.
+ * Topology-aware: rewrites connector references and parent_frame_id
+ * when the referenced objects are also being duplicated.
  * @param objects Source objects to duplicate
  * @param offset Pixel offset for x and y (default: 20)
  */
 export function createDuplicates(objects: BoardObject[], offset = DUPLICATE_OFFSET): BoardObject[] {
-  return objects.map((obj) => ({
-    ...obj,
-    id: uuidv4(),
-    x: obj.x + offset,
-    y: obj.y + offset,
-    version: 1,
-  }));
+  // Pass 1: Create duplicates with new IDs, build oldId->newId map
+  const idMap = new Map<string, string>();
+  const duplicates = objects.map((obj) => {
+    const newId = uuidv4();
+    idMap.set(obj.id, newId);
+    return { ...obj, id: newId, x: obj.x + offset, y: obj.y + offset, version: 1 };
+  });
+
+  // Pass 2: Rewrite connector references and parent_frame_id
+  return duplicates.map((dup) => {
+    let result = { ...dup };
+
+    // Rewrite connector from_object_id / to_object_id
+    if (result.type === "connector") {
+      const props = { ...result.properties };
+      const fromId = idMap.get(props.from_object_id);
+      if (fromId) {
+        props.from_object_id = fromId;
+      }
+      const toId = idMap.get(props.to_object_id);
+      if (toId) {
+        props.to_object_id = toId;
+      }
+      result = { ...result, properties: props };
+    }
+
+    // Rewrite parent_frame_id if the frame is in the group
+    if (result.parent_frame_id) {
+      const newFrameId = idMap.get(result.parent_frame_id);
+      if (newFrameId) {
+        result = { ...result, parent_frame_id: newFrameId };
+      }
+    }
+
+    return result;
+  });
 }
 
 /** UndoableCommand that inserts objects (for paste). */

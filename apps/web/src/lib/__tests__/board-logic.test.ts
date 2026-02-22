@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   screenToWorld,
   hitTest,
@@ -9,6 +9,7 @@ import {
   hitTestHandle,
 } from "../board-logic";
 import type { BoardObject } from "@/types/board";
+import * as rendererRegistry from "@/components/board/renderers/renderer-registry";
 
 // Helper to create a BoardObject with minimal required fields
 function makeObject(
@@ -387,5 +388,95 @@ describe("hitTestHandle", () => {
     // N edge midpoint is at (200, 100)
     const result = hitTestHandle(200, 98, rect, 8);
     expect(result).toBe("n");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// hitTest — renderer registry delegation
+// ─────────────────────────────────────────────────────────────
+describe("hitTest — renderer delegation", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("delegates to renderer hitTest when a renderer is registered", () => {
+    const line = makeObject({
+      id: "line-1",
+      type: "line",
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      properties: { x2: 100, y2: 100, arrow_style: "none", stroke_style: "solid", stroke_width: 2 },
+    } as Partial<BoardObject> & Pick<BoardObject, "id" | "type" | "x" | "y" | "width" | "height">);
+
+    const mockHitTest = vi.fn().mockReturnValue(true);
+    vi.spyOn(rendererRegistry, "hasRenderer").mockReturnValue(true);
+    vi.spyOn(rendererRegistry, "getRenderer").mockReturnValue({
+      hitTest: mockHitTest,
+      draw: vi.fn(),
+      getBounds: vi.fn(),
+      getResizeHandles: vi.fn().mockReturnValue([]),
+    });
+
+    const result = hitTest(50, 50, [line]);
+    expect(result).toBe(line);
+    expect(mockHitTest).toHaveBeenCalledWith(line, 50, 50);
+  });
+
+  it("falls back to AABB when no renderer is registered", () => {
+    vi.spyOn(rendererRegistry, "hasRenderer").mockReturnValue(false);
+
+    const rect = makeObject({
+      id: "rect-fallback",
+      type: "rectangle",
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 100,
+    });
+
+    expect(hitTest(50, 50, [rect])).toBe(rect);
+    expect(hitTest(150, 150, [rect])).toBeNull();
+  });
+
+  it("returns null when renderer hitTest returns false", () => {
+    const obj = makeObject({
+      id: "miss",
+      type: "line",
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      properties: { x2: 100, y2: 100, arrow_style: "none", stroke_style: "solid", stroke_width: 2 },
+    } as Partial<BoardObject> & Pick<BoardObject, "id" | "type" | "x" | "y" | "width" | "height">);
+
+    vi.spyOn(rendererRegistry, "hasRenderer").mockReturnValue(true);
+    vi.spyOn(rendererRegistry, "getRenderer").mockReturnValue({
+      hitTest: vi.fn().mockReturnValue(false),
+      draw: vi.fn(),
+      getBounds: vi.fn(),
+      getResizeHandles: vi.fn().mockReturnValue([]),
+    });
+
+    expect(hitTest(50, 50, [obj])).toBeNull();
+  });
+
+  it("still uses ellipse test for circles when no renderer registered", () => {
+    vi.spyOn(rendererRegistry, "hasRenderer").mockReturnValue(false);
+
+    const circle = makeObject({
+      id: "circle-delegate",
+      type: "circle",
+      x: 100,
+      y: 100,
+      width: 150,
+      height: 150,
+    });
+
+    // Center hit
+    expect(hitTest(175, 175, [circle])).toBe(circle);
+    // Corner of bounding box (outside ellipse)
+    expect(hitTest(101, 101, [circle])).toBeNull();
   });
 });

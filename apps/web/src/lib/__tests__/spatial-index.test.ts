@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { SpatialIndex } from "../spatial-index";
+import { SpatialIndex, getObjectBounds } from "../spatial-index";
 
 interface TestObj {
   id: string;
@@ -100,5 +100,95 @@ describe("SpatialIndex", () => {
     // Should be significantly fewer than 500
     expect(result.length).toBeLessThan(20);
     expect(result.length).toBeGreaterThan(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// getObjectBounds
+// ─────────────────────────────────────────────────────────────
+describe("getObjectBounds", () => {
+  it("returns padded envelope for line objects", () => {
+    const line = {
+      id: "line-1",
+      x: 10,
+      y: 20,
+      width: 0,
+      height: 0,
+      type: "line" as const,
+      properties: { x2: 100, y2: 200 },
+    };
+    const bounds = getObjectBounds(line);
+    // Envelope from (10,20) to (100,200) with 5px padding
+    // minX=5, minY=15, maxX=105, maxY=205
+    expect(bounds.x).toBe(5);
+    expect(bounds.y).toBe(15);
+    expect(bounds.width).toBe(100); // 105 - 5
+    expect(bounds.height).toBe(190); // 205 - 15
+  });
+
+  it("returns padded envelope for line where x2/y2 < x/y", () => {
+    const line = {
+      id: "line-2",
+      x: 100,
+      y: 200,
+      width: 0,
+      height: 0,
+      type: "line" as const,
+      properties: { x2: 10, y2: 20 },
+    };
+    const bounds = getObjectBounds(line);
+    // Envelope from (10,20) to (100,200) with 5px padding
+    // minX=5, minY=15, maxX=105, maxY=205
+    expect(bounds.x).toBe(5);
+    expect(bounds.y).toBe(15);
+    expect(bounds.width).toBe(100); // 105 - 5
+    expect(bounds.height).toBe(190); // 205 - 15
+  });
+
+  it("returns huge bounds for connector objects", () => {
+    const connector = {
+      id: "conn-1",
+      x: 50,
+      y: 50,
+      width: 0,
+      height: 0,
+      type: "connector" as const,
+      properties: { from_object_id: "a", to_object_id: "b" },
+    };
+    const bounds = getObjectBounds(connector);
+    expect(bounds.x).toBe(-1e6);
+    expect(bounds.y).toBe(-1e6);
+    expect(bounds.width).toBe(2e6);
+    expect(bounds.height).toBe(2e6);
+  });
+
+  it("returns original bounds for regular objects", () => {
+    const rect = {
+      id: "rect-1",
+      x: 100,
+      y: 200,
+      width: 300,
+      height: 400,
+    };
+    const bounds = getObjectBounds(rect);
+    expect(bounds.x).toBe(100);
+    expect(bounds.y).toBe(200);
+    expect(bounds.width).toBe(300);
+    expect(bounds.height).toBe(400);
+  });
+
+  it("returns original bounds for objects without type", () => {
+    const obj = {
+      id: "no-type",
+      x: 10,
+      y: 20,
+      width: 30,
+      height: 40,
+    };
+    const bounds = getObjectBounds(obj);
+    expect(bounds.x).toBe(10);
+    expect(bounds.y).toBe(20);
+    expect(bounds.width).toBe(30);
+    expect(bounds.height).toBe(40);
   });
 });

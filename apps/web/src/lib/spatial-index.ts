@@ -12,6 +12,37 @@ interface Bounded {
   height: number;
 }
 
+const LINE_PADDING = 5;
+
+interface BoundsResult {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Compute correct AABB for objects including lines and connectors. */
+export function getObjectBounds(
+  obj: Bounded & { type?: string; properties?: unknown }
+): BoundsResult {
+  if (obj.type === "line" && obj.properties !== null && typeof obj.properties === "object") {
+    const props = obj.properties as Record<string, unknown>;
+    const x2 = typeof props.x2 === "number" ? props.x2 : obj.x;
+    const y2 = typeof props.y2 === "number" ? props.y2 : obj.y;
+    const minX = Math.min(obj.x, x2) - LINE_PADDING;
+    const minY = Math.min(obj.y, y2) - LINE_PADDING;
+    const maxX = Math.max(obj.x, x2) + LINE_PADDING;
+    const maxY = Math.max(obj.y, y2) + LINE_PADDING;
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  }
+
+  if (obj.type === "connector") {
+    return { x: -1e6, y: -1e6, width: 2e6, height: 2e6 };
+  }
+
+  return { x: obj.x, y: obj.y, width: obj.width, height: obj.height };
+}
+
 export class SpatialIndex<T extends Bounded> {
   private cells = new Map<string, T[]>();
   private cellSize: number;
@@ -25,10 +56,11 @@ export class SpatialIndex<T extends Bounded> {
   }
 
   insert(obj: T): void {
-    const minCx = Math.floor(obj.x / this.cellSize);
-    const minCy = Math.floor(obj.y / this.cellSize);
-    const maxCx = Math.floor((obj.x + obj.width) / this.cellSize);
-    const maxCy = Math.floor((obj.y + obj.height) / this.cellSize);
+    const bounds = getObjectBounds(obj);
+    const minCx = Math.floor(bounds.x / this.cellSize);
+    const minCy = Math.floor(bounds.y / this.cellSize);
+    const maxCx = Math.floor((bounds.x + bounds.width) / this.cellSize);
+    const maxCy = Math.floor((bounds.y + bounds.height) / this.cellSize);
 
     for (let cx = minCx; cx <= maxCx; cx++) {
       for (let cy = minCy; cy <= maxCy; cy++) {

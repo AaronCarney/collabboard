@@ -1,5 +1,6 @@
 import type { BoardObject } from "@/types/board";
 import type { Camera } from "@/lib/board-store";
+import { hasRenderer, getRenderer } from "@/components/board/renderers/renderer-registry";
 
 /**
  * Convert screen (pixel) coordinates to world coordinates,
@@ -21,7 +22,9 @@ export function screenToWorld(sx: number, sy: number, camera: Camera) {
 export function hitTest(wx: number, wy: number, objects: BoardObject[]): BoardObject | null {
   for (let i = objects.length - 1; i >= 0; i--) {
     const obj = objects[i];
-    if (obj.type === "circle") {
+    if (hasRenderer(obj.type)) {
+      if (getRenderer(obj.type).hitTest(obj, wx, wy)) return obj;
+    } else if (obj.type === "circle") {
       const cx = obj.x + obj.width / 2;
       const cy = obj.y + obj.height / 2;
       const rx = obj.width / 2;

@@ -12,10 +12,13 @@ import {
   createDuplicateCommand,
 } from "../transforms";
 
+const VALID_UUID_1 = "550e8400-e29b-41d4-a716-446655440000";
+const VALID_UUID_BOARD = "550e8400-e29b-41d4-a716-446655440099";
+
 function makeObject(overrides: Partial<BoardObject> = {}): BoardObject {
   return {
-    id: "obj-1",
-    board_id: "board-1",
+    id: VALID_UUID_1,
+    board_id: VALID_UUID_BOARD,
     type: "sticky_note",
     x: 100,
     y: 100,
@@ -265,6 +268,169 @@ describe("transforms", () => {
       history.execute(cmd);
       expect(cmd.createdIds).toHaveLength(1);
       expect(cmd.createdIds[0]).not.toBe("orig-1");
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // createDuplicates — topology-aware connector rewriting
+  // ─────────────────────────────────────────────────────────────
+  describe("createDuplicates — topology-aware", () => {
+    it("rewrites connector from_object_id and to_object_id when source/target are in group", () => {
+      const rect1 = makeObject({ id: "rect-1", type: "sticky_note", x: 0, y: 0 });
+      const rect2 = makeObject({ id: "rect-2", type: "sticky_note", x: 200, y: 200 });
+      const connector = makeObject({
+        id: "conn-1",
+        type: "connector",
+        x: 50,
+        y: 50,
+        properties: {
+          from_object_id: "rect-1",
+          to_object_id: "rect-2",
+          from_port: "right",
+          to_port: "left",
+          arrow_style: "end",
+          stroke_style: "solid",
+        },
+      } as Partial<BoardObject>);
+
+      const dupes = createDuplicates([rect1, rect2, connector]);
+      expect(dupes).toHaveLength(3);
+
+      const dupConn = dupes[2];
+      expect(dupConn.type).toBe("connector");
+      if (dupConn.type === "connector") {
+        // Should reference the new duplicated IDs, not the originals
+        expect(dupConn.properties.from_object_id).not.toBe("rect-1");
+        expect(dupConn.properties.to_object_id).not.toBe("rect-2");
+        // Should reference the duplicated rect IDs
+        expect(dupConn.properties.from_object_id).toBe(dupes[0].id);
+        expect(dupConn.properties.to_object_id).toBe(dupes[1].id);
+      }
+    });
+
+    it("leaves connector references unchanged when source/target are NOT in group", () => {
+      const connector = makeObject({
+        id: "conn-2",
+        type: "connector",
+        x: 50,
+        y: 50,
+        properties: {
+          from_object_id: "external-1",
+          to_object_id: "external-2",
+          from_port: "right",
+          to_port: "left",
+          arrow_style: "none",
+          stroke_style: "solid",
+        },
+      } as Partial<BoardObject>);
+
+      const dupes = createDuplicates([connector]);
+      expect(dupes).toHaveLength(1);
+      if (dupes[0].type === "connector") {
+        expect(dupes[0].properties.from_object_id).toBe("external-1");
+        expect(dupes[0].properties.to_object_id).toBe("external-2");
+      }
+    });
+
+    it("rewrites parent_frame_id when frame is in the group", () => {
+      const frame = makeObject({
+        id: "frame-1",
+        type: "frame",
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 300,
+      });
+      const child = makeObject({
+        id: "child-1",
+        type: "sticky_note",
+        x: 50,
+        y: 50,
+        parent_frame_id: "frame-1",
+      });
+
+      const dupes = createDuplicates([frame, child]);
+      expect(dupes).toHaveLength(2);
+      // The duplicated child should reference the duplicated frame
+      expect(dupes[1].parent_frame_id).toBe(dupes[0].id);
+      expect(dupes[1].parent_frame_id).not.toBe("frame-1");
+    });
+
+    it("leaves parent_frame_id unchanged when frame is NOT in group", () => {
+      const child = makeObject({
+        id: "child-2",
+        type: "sticky_note",
+        x: 50,
+        y: 50,
+        parent_frame_id: "external-frame",
+      });
+
+      const dupes = createDuplicates([child]);
+      expect(dupes).toHaveLength(1);
+      expect(dupes[0].parent_frame_id).toBe("external-frame");
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // deserializeClipboard — Zod validation
+  // ─────────────────────────────────────────────────────────────
+  describe("deserializeClipboard — Zod validation", () => {
+    it("rejects objects missing required fields", () => {
+      const invalidJson = JSON.stringify([{ id: "not-a-uuid", type: "rectangle" }]);
+      const result = deserializeClipboard(invalidJson);
+      expect(result).toEqual([]);
+    });
+
+    it("rejects objects with invalid type", () => {
+      const invalidJson = JSON.stringify([
+        {
+          id: "550e8400-e29b-41d4-a716-446655440000",
+          board_id: "550e8400-e29b-41d4-a716-446655440001",
+          type: "unknown_type",
+          x: 0,
+          y: 0,
+          width: 100,
+          height: 100,
+          rotation: 0,
+          content: "",
+          color: "#000",
+          version: 1,
+          created_by: "user-1",
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-01-01T00:00:00Z",
+          parent_frame_id: null,
+          properties: {},
+        },
+      ]);
+      const result = deserializeClipboard(invalidJson);
+      expect(result).toEqual([]);
+    });
+
+    it("filters out invalid objects while keeping valid ones", () => {
+      const mixedJson = JSON.stringify([
+        {
+          id: "550e8400-e29b-41d4-a716-446655440000",
+          board_id: "550e8400-e29b-41d4-a716-446655440001",
+          type: "rectangle",
+          x: 0,
+          y: 0,
+          width: 100,
+          height: 100,
+          rotation: 0,
+          content: "",
+          color: "#000",
+          version: 1,
+          created_by: "user-1",
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-01-01T00:00:00Z",
+          parent_frame_id: null,
+          properties: {},
+        },
+        { id: "bad", type: "invalid" },
+      ]);
+      const result = deserializeClipboard(mixedJson);
+      expect(result).toHaveLength(1);
+      expect(result[0].type).toBe("rectangle");
     });
   });
 });
