@@ -1,8 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
+import { Home } from "lucide-react";
 import { useBoardContext } from "./BoardContext";
+import { getZoomSpeed, setZoomSpeed } from "@/lib/zoom-speed";
+import type { ZoomSpeedLevel } from "@/lib/zoom-speed";
 
 interface MenuBarProps {
   boardName: string;
@@ -16,6 +20,7 @@ interface MenuItem {
   shortcut?: string;
   disabled?: boolean;
   onClick?: () => void;
+  submenu?: MenuItem[];
 }
 
 type MenuId = "file" | "edit" | "view" | null;
@@ -31,16 +36,18 @@ export function MenuBar({
   onShowShortcuts,
 }: MenuBarProps): React.JSX.Element {
   const ctx = useBoardContext();
+  const router = useRouter();
   const [openMenu, setOpenMenu] = useState<MenuId>(null);
   const [nameValue, setNameValue] = useState(boardName);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [zoomSpeed, setZoomSpeedState] = useState<ZoomSpeedLevel>(getZoomSpeed());
 
   useEffect(() => {
     setNameValue(boardName);
   }, [boardName]);
 
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
+    function handleClickOutside(e: MouseEvent): void {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setOpenMenu(null);
       }
@@ -67,10 +74,22 @@ export function MenuBar({
     setOpenMenu(null);
   }, []);
 
+  const handleZoomSpeedChange = useCallback((speed: ZoomSpeedLevel) => {
+    setZoomSpeed(speed);
+    setZoomSpeedState(speed);
+    setOpenMenu(null);
+  }, []);
+
   const fileItems: MenuItem[] = [
     { label: "New Board", onClick: closeMenu },
     { label: "Duplicate Board", onClick: closeMenu },
-    { label: "Export as PNG", onClick: closeMenu },
+    {
+      label: "Export as PNG",
+      onClick: () => {
+        ctx.exportPNG?.();
+        setOpenMenu(null);
+      },
+    },
   ];
 
   const editItems: MenuItem[] = [
@@ -166,6 +185,29 @@ export function MenuBar({
       },
     },
     {
+      label: "Zoom Speed",
+      submenu: [
+        {
+          label: `Slow${zoomSpeed === "slow" ? " \u2713" : ""}`,
+          onClick: () => {
+            handleZoomSpeedChange("slow");
+          },
+        },
+        {
+          label: `Normal${zoomSpeed === "normal" ? " \u2713" : ""}`,
+          onClick: () => {
+            handleZoomSpeedChange("normal");
+          },
+        },
+        {
+          label: `Fast${zoomSpeed === "fast" ? " \u2713" : ""}`,
+          onClick: () => {
+            handleZoomSpeedChange("fast");
+          },
+        },
+      ],
+    },
+    {
       label: "Keyboard Shortcuts",
       shortcut: "?",
       onClick: () => {
@@ -190,6 +232,17 @@ export function MenuBar({
       ref={menuRef}
       className="absolute top-0 left-0 right-0 z-50 flex items-center h-12 bg-white border-b border-gray-200 px-2 gap-1 shadow-sm"
     >
+      {/* Home Button */}
+      <button
+        aria-label="Home"
+        onClick={() => {
+          router.push("/dashboard");
+        }}
+        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-600 transition"
+      >
+        <Home size={18} />
+      </button>
+
       {/* Board Name */}
       <input
         type="text"
@@ -304,18 +357,70 @@ function MenuTrigger({ label, isOpen, onClick, items }: MenuTriggerProps): React
       {isOpen && (
         <div className="absolute top-full left-0 mt-0.5 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-48 z-50">
           {items.map((item) => (
-            <button
-              key={item.label}
-              disabled={item.disabled}
-              onClick={item.onClick}
-              className="w-full flex items-center justify-between px-3 py-1.5 text-sm text-left hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <span>{item.label}</span>
-              {item.shortcut && <span className="text-xs text-gray-400 ml-4">{item.shortcut}</span>}
-            </button>
+            <MenuItemRow key={item.label} item={item} />
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+/* ---------- Individual menu item (supports submenu) ---------- */
+
+interface MenuItemRowProps {
+  item: MenuItem;
+}
+
+function MenuItemRow({ item }: MenuItemRowProps): React.JSX.Element {
+  const [submenuOpen, setSubmenuOpen] = useState(false);
+
+  if (item.submenu) {
+    return (
+      <div
+        className="relative"
+        onMouseEnter={() => {
+          setSubmenuOpen(true);
+        }}
+        onMouseLeave={() => {
+          setSubmenuOpen(false);
+        }}
+      >
+        <button
+          onClick={() => {
+            setSubmenuOpen((prev) => !prev);
+          }}
+          className="w-full flex items-center justify-between px-3 py-1.5 text-sm text-left hover:bg-gray-50"
+        >
+          <span>{item.label}</span>
+          <span className="text-xs text-gray-400 ml-4">{"\u25B8"}</span>
+        </button>
+        {submenuOpen && (
+          <div className="absolute left-full top-0 ml-0.5 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-36 z-50">
+            {item.submenu.map((sub) => (
+              <button
+                key={sub.label}
+                disabled={sub.disabled}
+                onClick={sub.onClick}
+                className="w-full flex items-center justify-between px-3 py-1.5 text-sm text-left hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <span>{sub.label}</span>
+                {sub.shortcut && <span className="text-xs text-gray-400 ml-4">{sub.shortcut}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      disabled={item.disabled}
+      onClick={item.onClick}
+      className="w-full flex items-center justify-between px-3 py-1.5 text-sm text-left hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+    >
+      <span>{item.label}</span>
+      {item.shortcut && <span className="text-xs text-gray-400 ml-4">{item.shortcut}</span>}
+    </button>
   );
 }

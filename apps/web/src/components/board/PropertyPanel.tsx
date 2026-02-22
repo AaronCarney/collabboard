@@ -117,7 +117,7 @@ export function PropertyPanel({
       </div>
 
       {/* Color Swatches */}
-      <div className="text-xs font-medium text-gray-500 mb-1">Color</div>
+      <div className="text-xs font-medium text-gray-500 mb-1">Fill</div>
       <div className="flex flex-wrap gap-1.5 mb-3">
         {COLOR_SWATCHES.map((color) => (
           <button

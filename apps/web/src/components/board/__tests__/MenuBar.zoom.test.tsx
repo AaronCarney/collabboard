@@ -3,6 +3,10 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { BoardContext } from "../BoardContext";
 import type { BoardContextValue } from "../BoardContext";
 
+vi.mock("next/navigation", () => ({
+  useRouter: vi.fn(() => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn() })),
+}));
+
 vi.mock("@clerk/nextjs", () => ({
   UserButton: () => <div data-testid="mock-user-button" />,
   ClerkProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,

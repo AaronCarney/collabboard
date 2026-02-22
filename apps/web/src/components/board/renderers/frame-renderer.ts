@@ -7,26 +7,40 @@ const TITLE_FONT = "bold 12px Inter, system-ui, sans-serif";
 const TITLE_PADDING = 10;
 const DASH_PATTERN: [number, number] = [6, 4];
 const BG_ALPHA = 0.04;
-const BORDER_COLOR = "#9E9E9E";
 const SELECTION_COLOR = "#3b82f6";
+
+/**
+ * Convert a hex color string to an rgba() string with a given alpha.
+ */
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) {
+    return `rgba(0, 0, 0, ${String(alpha)})`;
+  }
+  return `rgba(${String(r)}, ${String(g)}, ${String(b)}, ${String(alpha)})`;
+}
 
 export const frameRenderer: ShapeRenderer = {
   draw(ctx: CanvasRenderingContext2D, obj: BoardObject, isSelected: boolean): void {
     ctx.save();
 
-    // Semi-transparent background
-    ctx.fillStyle = `rgba(0, 0, 0, ${String(BG_ALPHA)})`;
+    const frameColor = obj.color || "#9E9E9E";
+
+    // Semi-transparent background using obj.color
+    ctx.fillStyle = hexToRgba(frameColor, BG_ALPHA);
     ctx.fillRect(obj.x, obj.y, obj.width, obj.height);
 
-    // Dashed border
+    // Dashed border using obj.color (or selection color when selected)
     ctx.setLineDash(DASH_PATTERN);
-    ctx.strokeStyle = isSelected ? SELECTION_COLOR : BORDER_COLOR;
+    ctx.strokeStyle = isSelected ? SELECTION_COLOR : frameColor;
     ctx.lineWidth = isSelected ? 2.5 : 1.5;
     ctx.strokeRect(obj.x, obj.y, obj.width, obj.height);
     ctx.setLineDash([]);
 
     // Title bar background
-    ctx.fillStyle = isSelected ? "rgba(59, 130, 246, 0.08)" : "rgba(0, 0, 0, 0.06)";
+    ctx.fillStyle = isSelected ? "rgba(59, 130, 246, 0.08)" : hexToRgba(frameColor, 0.06);
     ctx.fillRect(obj.x, obj.y, obj.width, TITLE_BAR_HEIGHT);
 
     // Title text

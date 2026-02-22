@@ -97,6 +97,22 @@ describe("frameRenderer", () => {
       expect(ctx.save).toHaveBeenCalled();
       expect(ctx.restore).toHaveBeenCalled();
     });
+
+    it("uses obj.color for the dashed border when not selected", () => {
+      const obj = makeFrame({ color: "#FF0000" });
+      frameRenderer.draw(ctx, obj, false);
+      // The strokeStyle should reflect obj.color, not the default gray
+      // We check that strokeStyle was set to something containing #FF0000
+      // since the renderer may adjust it
+      expect(ctx.strokeStyle).toContain("#FF0000");
+    });
+
+    it("uses obj.color-based fill for the background", () => {
+      const obj = makeFrame({ color: "#00FF00" });
+      frameRenderer.draw(ctx, obj, false);
+      // fillRect should be called with obj position and dimensions
+      expect(ctx.fillRect).toHaveBeenCalledWith(50, 50, 400, 300);
+    });
   });
 
   describe("hitTest()", () => {

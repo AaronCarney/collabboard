@@ -11,6 +11,12 @@ vi.mock("@clerk/nextjs", () => ({
   useAuth: vi.fn(() => ({ isLoaded: true, isSignedIn: true, userId: "test", getToken: vi.fn() })),
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: vi.fn(() => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn() })),
+  useParams: vi.fn(() => ({})),
+  useSearchParams: vi.fn(() => new URLSearchParams()),
+}));
+
 // Import after mock declaration (vi.mock is hoisted automatically)
 import { MenuBar } from "../MenuBar";
 
@@ -160,5 +166,31 @@ describe("MenuBar", () => {
     // Click outside the menu
     fireEvent.click(document.body);
     expect(screen.queryByText("New Board")).not.toBeInTheDocument();
+  });
+
+  it("renders a Home button", () => {
+    renderWithContext(<MenuBar boardName="Test" onBoardNameChange={vi.fn()} />, ctx);
+    expect(screen.getByLabelText("Home")).toBeInTheDocument();
+  });
+
+  it("shows Zoom Speed submenu in the View menu", () => {
+    renderWithContext(<MenuBar boardName="Test" onBoardNameChange={vi.fn()} />, ctx);
+    fireEvent.click(screen.getByText("View"));
+    expect(screen.getByText("Zoom Speed")).toBeInTheDocument();
+  });
+
+  it("shows Keyboard Shortcuts in View menu", () => {
+    renderWithContext(<MenuBar boardName="Test" onBoardNameChange={vi.fn()} />, ctx);
+    fireEvent.click(screen.getByText("View"));
+    expect(screen.getByText("Keyboard Shortcuts")).toBeInTheDocument();
+  });
+
+  it("calls exportPNG from context when Export as PNG is clicked", () => {
+    const exportFn = vi.fn();
+    ctx = createMockContext({ exportPNG: exportFn });
+    renderWithContext(<MenuBar boardName="Test" onBoardNameChange={vi.fn()} />, ctx);
+    fireEvent.click(screen.getByText("File"));
+    fireEvent.click(screen.getByText("Export as PNG"));
+    expect(exportFn).toHaveBeenCalled();
   });
 });

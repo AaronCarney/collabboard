@@ -395,4 +395,12 @@ describe("PropertyPanel", () => {
       expect(screen.queryByLabelText("Font Family")).toBeNull();
     });
   });
+
+  describe("fill label (AC: rename Color to Fill)", () => {
+    it("shows 'Fill' label instead of 'Color'", () => {
+      render(<PropertyPanel selectedObjects={[makeObject()]} onUpdateObjects={vi.fn()} />);
+      expect(screen.getByText("Fill")).toBeInTheDocument();
+      expect(screen.queryByText("Color")).not.toBeInTheDocument();
+    });
+  });
 });

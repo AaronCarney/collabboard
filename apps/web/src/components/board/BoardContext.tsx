@@ -21,6 +21,7 @@ export interface BoardContextValue {
   gridVisible: boolean;
   toggleGrid: () => void;
   readOnly: boolean;
+  exportPNG?: () => void;
 }
 
 export const BoardContext = createContext<BoardContextValue | null>(null);
