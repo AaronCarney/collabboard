@@ -235,7 +235,7 @@ describe("PropertyPanel", () => {
           onUpdateObjects={vi.fn()}
         />
       );
-      expect(screen.getByText(/stroke/i)).toBeInTheDocument();
+      expect(screen.getByText(/border/i)).toBeInTheDocument();
     });
   });
 
