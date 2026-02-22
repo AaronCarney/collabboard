@@ -18,6 +18,8 @@ const baseObjectSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   parent_frame_id: z.string().uuid().nullable(),
+  strokeColor: z.string().optional(),
+  strokeWidth: z.number().positive().optional(),
 });
 
 const emptyPropertiesSchema = z.object({}).strict().or(z.record(z.never()));

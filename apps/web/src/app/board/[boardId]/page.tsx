@@ -583,7 +583,7 @@ export default function BoardPage() {
             for (const obj of data.objects) {
               const result = boardObjectSchema.safeParse(obj);
               if (result.success) {
-                validatedObjects.push(result.data as BoardObject);
+                validatedObjects.push(result.data);
               }
             }
             if (validatedObjects.length > 0) {

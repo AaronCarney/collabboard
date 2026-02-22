@@ -60,7 +60,7 @@ function validateBoardObjects(raw: unknown[]): BoardObject[] {
   for (const item of raw) {
     const result = boardObjectSchema.safeParse(item);
     if (result.success) {
-      valid.push(result.data as BoardObject);
+      valid.push(result.data);
     } else if (DEBUG_REALTIME) {
       console.warn("[Zod] rejected board object:", result.error.issues); // eslint-disable-line no-console
     }
@@ -75,7 +75,7 @@ function validateBoardObjects(raw: unknown[]): BoardObject[] {
 function validateBroadcastPayload(payload: unknown): BoardObject | null {
   const result = boardObjectSchema.safeParse(payload);
   if (result.success) {
-    return result.data as BoardObject;
+    return result.data;
   }
   if (DEBUG_REALTIME) {
     console.warn("[Zod] rejected broadcast payload:", result.error.issues); // eslint-disable-line no-console
