@@ -110,6 +110,7 @@ export function BoardCanvas({
   const currentWorldPosRef = useRef<{ x: number; y: number } | null>(null);
   const animFrameRef = useRef<number>(0);
   const lastResizeBroadcast = useRef(0);
+  const lastCanvasSizeRef = useRef<{ w: number; h: number; dpr: number }>({ w: 0, h: 0, dpr: 0 });
 
   // Screen to world coords
   const screenToWorld = useCallback(
@@ -149,9 +150,15 @@ export function BoardCanvas({
     const dpr = window.devicePixelRatio || 1;
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
-    ctx.scale(dpr, dpr);
+    const newW = w * dpr;
+    const newH = h * dpr;
+    const last = lastCanvasSizeRef.current;
+    if (last.w !== newW || last.h !== newH || last.dpr !== dpr) {
+      canvas.width = newW;
+      canvas.height = newH;
+      lastCanvasSizeRef.current = { w: newW, h: newH, dpr };
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // Clear
     ctx.fillStyle = "#f8f9fa";

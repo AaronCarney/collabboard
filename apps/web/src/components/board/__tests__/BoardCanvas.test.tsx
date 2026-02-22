@@ -33,6 +33,7 @@ const mockContext = {
   setLineDash: vi.fn(),
   globalAlpha: 1,
   measureText: vi.fn(() => ({ width: 50 })),
+  setTransform: vi.fn(),
 };
 
 HTMLCanvasElement.prototype.getContext = vi.fn(
@@ -432,6 +433,78 @@ describe("BoardCanvas", () => {
       // obj-2 starts at (400, 400), same delta → (420, 410)
       expect(move2?.x).toBe(420);
       expect(move2?.y).toBe(410);
+    });
+  });
+
+  // Critical #3: Canvas dimensions optimization
+  describe("canvas dimension optimization", () => {
+    it("does not reassign canvas.width/height when dimensions are unchanged between renders", async () => {
+      const props = defaultProps();
+      const { container, rerender } = render(<BoardCanvas {...props} />);
+      const canvas = getCanvas(container);
+
+      // Wait for first render to complete
+      await act(async () => {
+        await vi.waitFor(() => {
+          expect(mockContext.fillRect).toHaveBeenCalled();
+        });
+      });
+
+      // Track canvas.width/height assignments via property spy
+      let widthSetCount = 0;
+      let heightSetCount = 0;
+      let currentWidth = canvas.width;
+      let currentHeight = canvas.height;
+
+      Object.defineProperty(canvas, "width", {
+        get() {
+          return currentWidth;
+        },
+        set(v: number) {
+          widthSetCount++;
+          currentWidth = v;
+        },
+        configurable: true,
+      });
+      Object.defineProperty(canvas, "height", {
+        get() {
+          return currentHeight;
+        },
+        set(v: number) {
+          heightSetCount++;
+          currentHeight = v;
+        },
+        configurable: true,
+      });
+
+      // Trigger a re-render (camera change marks dirty) but with SAME canvas size
+      vi.clearAllMocks();
+      rerender(<BoardCanvas {...{ ...props, camera: { x: 1, y: 0, zoom: 1 } }} />);
+
+      await act(async () => {
+        await vi.waitFor(() => {
+          expect(mockContext.fillRect).toHaveBeenCalled();
+        });
+      });
+
+      // Canvas dimensions should NOT have been reassigned since size didn't change
+      expect(widthSetCount).toBe(0);
+      expect(heightSetCount).toBe(0);
+    });
+
+    it("uses setTransform to reset DPR scaling without relying on dimension reset", async () => {
+      const props = defaultProps();
+      mockContext.setTransform = vi.fn();
+      render(<BoardCanvas {...props} />);
+
+      await act(async () => {
+        await vi.waitFor(() => {
+          expect(mockContext.fillRect).toHaveBeenCalled();
+        });
+      });
+
+      // Should use setTransform for DPR scaling (idempotent, no accumulation)
+      expect(mockContext.setTransform).toHaveBeenCalled();
     });
   });
 
