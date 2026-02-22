@@ -24,78 +24,81 @@ Started: 2026-02-21
 - Tests at `transforms.test.ts:377-435` cover Zod validation (invalid fields, mixed valid/invalid)
 - No action needed
 
+### Critical #3: Canvas dimensions reset every rAF frame — `c2ee8eb`
+
+- Added `lastCanvasSizeRef` to track last known canvas dimensions (w, h, dpr)
+- Only reassigns `canvas.width`/`canvas.height` when dimensions actually change
+- Uses `ctx.setTransform(dpr, 0, 0, dpr, 0, 0)` instead of `ctx.scale()` to avoid transform accumulation
+- Added 2 tests in `BoardCanvas.test.tsx` (1080 total)
+
+### Warning #5: Connector renderer module-level singleton — `acc0f3c`
+
+- Added `RenderContext` interface to `renderers/types.ts` with `objectResolver` function
+- Updated `ShapeRenderer` interface: `draw()`, `hitTest()`, `getBounds()` accept optional `RenderContext`
+- Connector renderer now uses context param with fallback to legacy singleton
+- BoardCanvas builds `RenderContext` and passes to `renderer.draw()`
+- Added 3 tests in `connector-renderer.test.ts` (1083 total)
+
+### Warning #6: Zoom handler ignores delta magnitude — `df0dc20`
+
+- Added `getZoomSensitivity()` to `zoom-speed.ts` with per-speed multipliers (slow=0.5, normal=1.0, fast=2.5)
+- Changed `handleZoom` in `page.tsx` from binary `1.1x` to `Math.exp(delta * sensitivity)`
+- Larger wheel/pinch deltas now produce proportionally larger zoom changes
+- Added 3 tests in `zoom-speed.test.ts` (1086 total)
+
+### Warning #7: Cursor username not truncated — `fc1bc46`
+
+- Truncates `cursor.userName` to 30 chars with ellipsis (`\u2026`) before measuring and rendering
+- Applied to both `ctx.measureText()` and `ctx.fillText()` calls in `drawCursor()`
+- Added 2 tests in `BoardCanvas.test.tsx` (1088 total)
+
+### Warning #10: `canUndo`/`canRedo` stale reads — `d5ff01f`
+
+- Added `historyVersion` state counter, incremented in `undo()` and `redo()` callbacks
+- `canUndo`/`canRedo` now recompute on each render triggered by the counter
+- Added 2 tests in `board-store.test.ts` (1090 total)
+
+### Warning #8: `hitTestHandle` ignores rotation — `8765ea2`
+
+- Inverse-rotate mouse point into object's local coordinate frame before testing handle positions
+- Uses center-of-object as rotation pivot, applies -rotation transform
+- Added 3 tests in `board-logic.test.ts` (1093 total)
+
+### Warning #9: Multi-drag broadcasts every mousemove — `eb062ac`
+
+- Extracted `broadcastMoves` helper from `moveObjects` in `board-store.ts`
+- Leading-edge throttle: first broadcast fires immediately, subsequent within 50ms are queued
+- Trailing-edge fires after 50ms with latest positions from `objectsMapRef`
+- `persist=true` (mouseup) always broadcasts immediately and clears pending throttle
+- Added 2 tests in `board-store.test.ts` (1106 total)
+
+### Observation #11: Renderers apply `strokeColor`/`strokeWidth` — `8765ea2`
+
+- Rectangle, circle, and sticky-note renderers now read `obj.strokeColor` and `obj.strokeWidth`
+- Stroke applied after fill, before selection highlight
+- Added 2 tests per renderer (1106 total)
+
+### Observation #12: `wrapText` handles `\n` — `8765ea2`
+
+- Split text on `\n` first (paragraphs), then word-wrap each paragraph
+- Created new test file `render-utils.test.ts` with 3 tests
+
+### Observation #13: Connector `getBounds` minimum dimensions — `8765ea2`
+
+- `getBounds` now returns `Math.max(width, 1)` and `Math.max(height, 1)`
+- Prevents axis-aligned connectors from disappearing from spatial index
+- Added 2 tests in `connector-renderer.test.ts`
+
+### Observation #14: MenuBar File items wired — `b1c9a38`
+
+- "New Board" navigates to `/dashboard` via `router.push`
+- "Duplicate Board" calls `onDuplicateBoard` prop callback
+- "Export as PNG" was already wired (prior commit)
+- Added 2 tests in `MenuBar.test.tsx` (1108 total)
+
 ## Remaining
 
-### Critical #3: Canvas dimensions reset every rAF frame
-
-- **File:** `BoardCanvas.tsx:148-153`
-- **Problem:** `canvas.width = w * dpr` runs every frame, forcing layout reflow even when unchanged
-- **Fix:** Track last known size in a ref, only reset canvas dimensions when they change. Use ResizeObserver.
-- **Test approach:** Unit test that render() doesn't reset canvas dimensions when size unchanged
-
-### Warning #5: Connector renderer module-level singleton
-
-- **File:** `connector-renderer.ts:15`
-- **Problem:** `setObjectResolver` is a shared mutable singleton — test isolation issues, concurrent render hazard
-- **Fix:** Pass resolver as argument to `draw()` via a render context, or pass objectsMap directly
-- **Note:** This changes the `ShapeRenderer` interface — ripple effect to all renderers and tests
-
-### Warning #6: Zoom handler ignores delta magnitude
-
-- **File:** `page.tsx:407` (handleZoom)
-- **Problem:** Binary zoom (1.1x or 1/1.1x) regardless of wheel delta magnitude
-- **Fix:** `const factor = Math.exp(delta * 0.8)` for analog pinch zoom
-- **Test file:** `zoom-speed.test.ts` (12 existing tests — may need updates)
-
-### Warning #7: Cursor username not truncated
-
-- **File:** `BoardCanvas.tsx:868` (drawCursor)
-- **Problem:** `cursor.userName` rendered without length cap — DoS via long usernames
-- **Fix:** Truncate to 30 chars before `ctx.fillText` and `ctx.measureText`
-
-### Warning #8: `hitTestHandle` ignores rotation
-
-- **File:** `board-logic.ts:149-162`
-- **Problem:** Hit test uses axis-aligned coords but handles render rotated
-- **Fix:** Inverse-rotate mouse point before testing: transform (wx,wy) into object's local frame
-- **Test file:** `board-logic.test.ts` (50 existing tests — add rotation-aware handle tests)
-
-### Warning #9: Multi-drag broadcasts every mousemove
-
-- **File:** `BoardCanvas.tsx:488-498` (handleMouseMove during drag)
-- **Problem:** At 120Hz, fires 120+ broadcasts/sec per dragged object
-- **Fix:** Split into local-only state update + throttled broadcast at ~50ms intervals
-- **Test approach:** Test that onObjectsMove is called on every mousemove but broadcast is throttled
-
-### Warning #10: `canUndo`/`canRedo` stale reads
-
-- **File:** `board-store.ts:222-223`
-- **Problem:** Computed from plain ref, not React state — doesn't trigger re-render after history ops
-- **Fix:** Add `historyVersion` state counter, increment after each execute/undo/redo
-
-### Observation #11: Renderers don't apply `strokeColor`/`strokeWidth`
-
-- **Files:** `rectangle-renderer.ts`, `circle-renderer.ts`, `sticky-note-renderer.ts`
-- **Fix:** Read `obj.strokeColor` and `obj.strokeWidth` in draw(), apply as stroke after fill
-
-### Observation #12: `wrapText` doesn't handle `\n`
-
-- **File:** `render-utils.ts:65`
-- **Problem:** `text.split(" ")` treats `\n` as part of word token
-- **Fix:** Split on newlines first, then word-wrap each line
-
-### Observation #13: Connector `getBounds` returns zero height for axis-aligned lines
-
-- **File:** `connector-renderer.ts:186-203`
-- **Problem:** Horizontal connector → height=0 → disappears from spatial index
-- **Fix:** Add minimum padding (e.g., `Math.max(width, 1)` and `Math.max(height, 1)`)
-
-### Observation #14: MenuBar File items are no-ops
-
-- **File:** `MenuBar.tsx:71-74`
-- **Problem:** "New Board" and "Duplicate Board" just close menu
-- **Note:** "Export as PNG" has `export-png.ts` ready but unwired
-- **Fix:** Wire exportPNG from BoardContext; New Board → router.push; Duplicate → API call
+None — all 14 architectural review findings addressed.
 
 ## Pre-existing Issues (not ours to fix)
 
