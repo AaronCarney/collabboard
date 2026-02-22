@@ -896,3 +896,58 @@ describe("useBoardStore — mergeObjects", () => {
     expect(result.current.objects[0].content).toBe("Replaced");
   });
 });
+
+// ─────────────────────────────────────────────────────────────
+// getPipeline — getObject
+// ─────────────────────────────────────────────────────────────
+describe("useBoardStore — getPipeline().getObject()", () => {
+  it("returns an existing object by ID", async () => {
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    await act(async () => {
+      await result.current.createObject("sticky_note", 10, 20);
+    });
+
+    const id = result.current.objects[0].id;
+    const pipeline = result.current.getPipeline();
+    const found = pipeline.getObject(id);
+
+    expect(found).not.toBeNull();
+    expect(found?.id).toBe(id);
+    expect(found?.x).toBe(10);
+  });
+
+  it("returns null for a non-existent ID", () => {
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    const pipeline = result.current.getPipeline();
+    const found = pipeline.getObject("nonexistent");
+
+    expect(found).toBeNull();
+  });
+
+  it("reflects the latest state after mutations", async () => {
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    await act(async () => {
+      await result.current.createObject("sticky_note", 10, 20);
+    });
+
+    const id = result.current.objects[0].id;
+
+    act(() => {
+      result.current.updateObject(id, { x: 999 });
+    });
+
+    const pipeline = result.current.getPipeline();
+    const found = pipeline.getObject(id);
+
+    expect(found?.x).toBe(999);
+  });
+});

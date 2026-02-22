@@ -91,7 +91,22 @@ export function useBoardStore(
   supabase: SupabaseClient,
   realtimeSupabase: SupabaseClient
 ) {
-  const [objectsMap, setObjectsMap] = useState<Map<string, BoardObject>>(new Map());
+  const [objectsMap, setObjectsMapRaw] = useState<Map<string, BoardObject>>(new Map());
+  const objectsMapRef = useRef<Map<string, BoardObject>>(new Map());
+  const setObjectsMap = useCallback(
+    (
+      updater:
+        | Map<string, BoardObject>
+        | ((prev: Map<string, BoardObject>) => Map<string, BoardObject>)
+    ) => {
+      setObjectsMapRaw((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        objectsMapRef.current = next;
+        return next;
+      });
+    },
+    []
+  );
   const objects = useMemo(() => Array.from(objectsMap.values()), [objectsMap]);
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -196,13 +211,7 @@ export function useBoardStore(
         mutateRemove(ids);
       },
       getObject(id: string) {
-        // Read the latest objects through the Map ref
-        let found: BoardObject | null = null;
-        setObjectsMap((prev) => {
-          found = prev.get(id) ?? null;
-          return prev;
-        });
-        return found;
+        return objectsMapRef.current.get(id) ?? null;
       },
     };
   }, [mutate, mutateRemove]);
