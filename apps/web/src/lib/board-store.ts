@@ -117,6 +117,7 @@ export function useBoardStore(
   const channelRef = useRef<ReturnType<typeof realtimeSupabase.channel> | null>(null);
   const subscribedRef = useRef(false);
   const historyRef = useRef<CommandHistory>(createCommandHistory());
+  const [historyVersion, setHistoryVersion] = useState(0);
 
   const userColor = USER_COLORS[Math.abs(hashCode(userId)) % USER_COLORS.length];
 
@@ -222,14 +223,16 @@ export function useBoardStore(
 
   const undo = useCallback(() => {
     history.undo();
+    setHistoryVersion((v) => v + 1);
   }, [history]);
 
   const redo = useCallback(() => {
     history.redo();
+    setHistoryVersion((v) => v + 1);
   }, [history]);
 
-  const canUndo = history.canUndo();
-  const canRedo = history.canRedo();
+  const canUndo = historyVersion >= 0 && history.canUndo();
+  const canRedo = historyVersion >= 0 && history.canRedo();
 
   // ─── Load + Subscribe ──────────────────────────────────────
 

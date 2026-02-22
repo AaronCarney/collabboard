@@ -951,3 +951,65 @@ describe("useBoardStore — getPipeline().getObject()", () => {
     expect(found?.x).toBe(999);
   });
 });
+
+// ─────────────────────────────────────────────────────────────
+// Warning #10: canUndo/canRedo reactivity
+// ─────────────────────────────────────────────────────────────
+describe("useBoardStore — canUndo/canRedo reactivity", () => {
+  it("canUndo becomes true after execute and false after undo", () => {
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    // Initially no history
+    expect(result.current.canUndo).toBe(false);
+    expect(result.current.canRedo).toBe(false);
+
+    // Execute a command (no-op for test purposes)
+    const noop = (): void => {
+      /* no-op */
+    };
+    act(() => {
+      result.current.history.execute({
+        execute: noop,
+        undo: noop,
+      });
+      // Force re-render by incrementing historyVersion
+      result.current.undo();
+    });
+
+    // After undo, canRedo should be true
+    expect(result.current.canRedo).toBe(true);
+    expect(result.current.canUndo).toBe(false);
+  });
+
+  it("re-renders when undo/redo change history state", () => {
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    let undoVal = false;
+    let redoVal = false;
+
+    // Execute two commands (no-op for test purposes)
+    const noop = (): void => {
+      /* no-op */
+    };
+    act(() => {
+      result.current.history.execute({ execute: noop, undo: noop });
+    });
+    act(() => {
+      result.current.history.execute({ execute: noop, undo: noop });
+    });
+
+    // Undo should update canUndo/canRedo
+    act(() => {
+      result.current.undo();
+    });
+    undoVal = result.current.canUndo;
+    redoVal = result.current.canRedo;
+
+    expect(undoVal).toBe(true); // 1 command left to undo
+    expect(redoVal).toBe(true); // 1 command to redo
+  });
+});
