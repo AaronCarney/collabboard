@@ -14,6 +14,8 @@ import {
   createConnectorObject,
   computeDragBounds,
 } from "@/lib/canvas-drawing-utils";
+import { findContainingFrame } from "@/lib/frame-containment";
+import { exportBoardAsPng } from "@/lib/export-png";
 import { validateShareToken, isReadOnlyAccess } from "@/lib/share-access";
 import { useBoardStore } from "@/lib/board-store";
 import { createBoardKeyHandler, isTextInputFocused } from "@/lib/board-keyboard";
@@ -76,7 +78,8 @@ export default function BoardPage() {
   const readOnly = isReadOnlyAccess(shareAccessLevel);
   const [hintDismissed, setHintDismissed] = useState(
     () =>
-      typeof window !== "undefined" && localStorage.getItem("collabboard:hint-dismissed") === "true"
+      typeof window !== "undefined" &&
+      localStorage.getItem(`collabboard:hint-dismissed:${boardId}`) === "true"
   );
   const clipboardRef = useRef<string>("");
 
@@ -174,8 +177,8 @@ export default function BoardPage() {
 
   const handleDismissHint = useCallback(() => {
     setHintDismissed(true);
-    localStorage.setItem("collabboard:hint-dismissed", "true");
-  }, []);
+    localStorage.setItem(`collabboard:hint-dismissed:${boardId}`, "true");
+  }, [boardId]);
 
   const handleCanvasClick = useCallback(
     (wx: number, wy: number) => {
@@ -187,11 +190,23 @@ export default function BoardPage() {
         store.activeTool !== "connector" &&
         store.activeTool !== "line"
       ) {
-        void store.createObject(store.activeTool, wx, wy);
+        void store.createObject(store.activeTool, wx, wy).then((newObj) => {
+          const containingFrame = findContainingFrame(newObj, store.objects);
+          if (containingFrame) {
+            store.updateObject(newObj.id, { parent_frame_id: containingFrame.id });
+          }
+        });
         store.setActiveTool("select");
       }
     },
-    [store.activeTool, store.createObject, store.setActiveTool, readOnly]
+    [
+      store.activeTool,
+      store.createObject,
+      store.setActiveTool,
+      store.objects,
+      store.updateObject,
+      readOnly,
+    ]
   );
 
   const handleDrawCreate = useCallback(
@@ -221,11 +236,27 @@ export default function BoardPage() {
           endY,
           defaults: { width: defaultW, height: defaultH },
         });
-        void store.createObject(objectType, bounds.x, bounds.y, bounds.width, bounds.height);
+        void store
+          .createObject(objectType, bounds.x, bounds.y, bounds.width, bounds.height)
+          .then((newObj) => {
+            const containingFrame = findContainingFrame(newObj, store.objects);
+            if (containingFrame) {
+              store.updateObject(newObj.id, { parent_frame_id: containingFrame.id });
+            }
+          });
       }
       store.setActiveTool("select");
     },
-    [boardId, user?.id, store.mutate, store.createObject, store.setActiveTool, readOnly]
+    [
+      boardId,
+      user?.id,
+      store.mutate,
+      store.createObject,
+      store.setActiveTool,
+      store.objects,
+      store.updateObject,
+      readOnly,
+    ]
   );
 
   const handleConnectorCreate = useCallback(
@@ -280,9 +311,46 @@ export default function BoardPage() {
   const handleObjectsMove = useCallback(
     (moves: { id: string; x: number; y: number }[], persist?: boolean) => {
       if (readOnly) return;
-      store.moveObjects(moves, persist);
+
+      // If moving a frame, also move its children
+      const allMoves = [...moves];
+      const movingIds = new Set(allMoves.map((m) => m.id));
+      for (const move of moves) {
+        const obj = store.objects.find((o) => o.id === move.id);
+        if (obj?.type === "frame") {
+          const originalFrame = store.objects.find((o) => o.id === move.id);
+          if (originalFrame) {
+            const dx = move.x - originalFrame.x;
+            const dy = move.y - originalFrame.y;
+            const children = store.objects.filter((o) => o.parent_frame_id === move.id);
+            for (const child of children) {
+              if (!movingIds.has(child.id)) {
+                movingIds.add(child.id);
+                allMoves.push({ id: child.id, x: child.x + dx, y: child.y + dy });
+              }
+            }
+          }
+        }
+      }
+
+      store.moveObjects(allMoves, persist);
+
+      // On persist (mouseup), re-check containment for non-frame objects
+      if (persist) {
+        for (const move of allMoves) {
+          const movedObj = store.objects.find((o) => o.id === move.id);
+          if (movedObj && movedObj.type !== "frame") {
+            const updatedObj = { ...movedObj, x: move.x, y: move.y };
+            const frame = findContainingFrame(updatedObj, store.objects);
+            const newFrameId = frame?.id ?? null;
+            if (newFrameId !== movedObj.parent_frame_id) {
+              store.updateObject(movedObj.id, { parent_frame_id: newFrameId });
+            }
+          }
+        }
+      }
     },
-    [store.moveObjects, readOnly]
+    [store.moveObjects, store.objects, store.updateObject, readOnly]
   );
 
   const handleDoubleClick = useCallback(
@@ -569,6 +637,9 @@ export default function BoardPage() {
         setGridVisible((prev) => !prev);
       },
       readOnly,
+      exportPNG: () => {
+        exportBoardAsPng(store.objects, boardName);
+      },
     }),
     [
       store.activeTool,
@@ -587,6 +658,7 @@ export default function BoardPage() {
       handlePaste,
       gridVisible,
       readOnly,
+      boardName,
     ]
   );
 
@@ -674,7 +746,7 @@ export default function BoardPage() {
 
         {/* Empty Board Onboarding */}
         {store.objects.length === 0 && !store.editingId && !hintDismissed && (
-          <EmptyBoardHint onDismiss={handleDismissHint} />
+          <EmptyBoardHint boardId={boardId} onDismiss={handleDismissHint} />
         )}
 
         {/* Keyboard Shortcut Help */}

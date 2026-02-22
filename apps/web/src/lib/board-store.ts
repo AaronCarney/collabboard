@@ -500,9 +500,36 @@ export function useBoardStore(
 
   const deleteObject = useCallback(
     async (id: string) => {
+      // If deleting a frame, nullify parent_frame_id on its children first
       setObjectsMap((prev) => {
-        if (!prev.has(id)) return prev;
+        const objToDelete = prev.get(id);
+        if (!objToDelete) return prev;
         const next = new Map(prev);
+
+        if (objToDelete.type === "frame") {
+          for (const [childId, child] of next) {
+            if (child.parent_frame_id === id && childId !== id) {
+              const updated = {
+                ...child,
+                parent_frame_id: null,
+                version: child.version + 1,
+                updated_at: new Date().toISOString(),
+              } as BoardObject;
+              next.set(childId, updated);
+
+              // Persist child update
+              void supabase
+                .from("board_objects")
+                .update({
+                  parent_frame_id: null,
+                  version: updated.version,
+                  updated_at: updated.updated_at,
+                })
+                .eq("id", childId);
+            }
+          }
+        }
+
         next.delete(id);
         return next;
       });
