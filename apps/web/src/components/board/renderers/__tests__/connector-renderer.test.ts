@@ -258,4 +258,62 @@ describe("connectorRenderer", () => {
       expect(connectorRenderer.getResizeHandles(conn)).toEqual([]);
     });
   });
+
+  describe("render context (no singleton)", () => {
+    it("uses objectResolver from render context instead of module-level singleton", () => {
+      // Reset the module-level resolver to prove it's not used
+      setObjectResolver(() => null);
+
+      const conn = makeConnector();
+      const objectMap = new Map<string, BoardObject>([
+        [rectA.id, rectA],
+        [rectB.id, rectB],
+      ]);
+      const renderContext = {
+        objectResolver: (id: string): BoardObject | null => objectMap.get(id) ?? null,
+      };
+
+      connectorRenderer.draw(ctx, conn, false, renderContext);
+
+      // Should resolve ports correctly via context (not the null singleton)
+      // right of rectA (300,175) to left of rectB (500,275)
+      expect(ctx.moveTo).toHaveBeenCalledWith(300, 175);
+      expect(ctx.lineTo).toHaveBeenCalledWith(500, 275);
+    });
+
+    it("hitTest uses render context objectResolver", () => {
+      setObjectResolver(() => null);
+
+      const conn = makeConnector();
+      const objectMap = new Map<string, BoardObject>([
+        [rectA.id, rectA],
+        [rectB.id, rectB],
+      ]);
+      const renderContext = {
+        objectResolver: (id: string): BoardObject | null => objectMap.get(id) ?? null,
+      };
+
+      // Midpoint of connector (300,175)→(500,275) ≈ (400,225)
+      expect(connectorRenderer.hitTest(conn, 400, 225, renderContext)).toBe(true);
+    });
+
+    it("getBounds uses render context objectResolver", () => {
+      setObjectResolver(() => null);
+
+      const conn = makeConnector();
+      const objectMap = new Map<string, BoardObject>([
+        [rectA.id, rectA],
+        [rectB.id, rectB],
+      ]);
+      const renderContext = {
+        objectResolver: (id: string): BoardObject | null => objectMap.get(id) ?? null,
+      };
+
+      const bounds = connectorRenderer.getBounds(conn, renderContext);
+      expect(bounds.x).toBe(300);
+      expect(bounds.y).toBe(175);
+      expect(bounds.width).toBe(200);
+      expect(bounds.height).toBe(100);
+    });
+  });
 });

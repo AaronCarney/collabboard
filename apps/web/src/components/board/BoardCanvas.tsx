@@ -16,6 +16,7 @@ import {
 } from "@/lib/board-logic";
 import { hasRenderer, getRenderer } from "@/components/board/renderers/renderer-registry";
 import { setObjectResolver } from "@/components/board/renderers/connector-renderer";
+import type { RenderContext } from "@/components/board/renderers/types";
 import { SpatialIndex } from "@/lib/spatial-index";
 import "@/components/board/renderers/init";
 
@@ -174,9 +175,13 @@ export function BoardCanvas({
       drawGrid(ctx, camera, w, h);
     }
 
-    // Wire connector renderer's object resolver before render pass
+    // Build render context for renderers that need object lookups (e.g. connectors)
     const objMap = objectsMapRef.current;
-    setObjectResolver((id: string) => objMap.get(id) ?? null);
+    const renderContext: RenderContext = {
+      objectResolver: (id: string) => objMap.get(id) ?? null,
+    };
+    // Keep legacy singleton in sync for any external callers
+    setObjectResolver(renderContext.objectResolver);
 
     // Compute viewport bounds in world space for culling
     const vpLeft = -camera.x / camera.zoom;
@@ -206,7 +211,7 @@ export function BoardCanvas({
       ctx.globalAlpha = obj.opacity ?? 1;
       if (hasRenderer(obj.type)) {
         const renderer = getRenderer(obj.type);
-        renderer.draw(ctx, obj, isSelected);
+        renderer.draw(ctx, obj, isSelected, renderContext);
       } else {
         drawObjectFallback(ctx, obj, isSelected);
       }

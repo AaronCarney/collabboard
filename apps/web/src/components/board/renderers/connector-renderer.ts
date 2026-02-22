@@ -1,5 +1,5 @@
 import type { BoardObject, ConnectorObject, PortName } from "@collabboard/shared";
-import type { ShapeRenderer } from "./types";
+import type { ShapeRenderer, RenderContext } from "./types";
 
 const HIT_TOLERANCE = 8;
 const ARROWHEAD_SIZE = 12;
@@ -37,15 +37,19 @@ function getPortPosition(obj: BoardObject, port: PortName): { x: number; y: numb
   }
 }
 
-function resolveEndpoints(conn: ConnectorObject): {
+function resolveEndpoints(
+  conn: ConnectorObject,
+  resolverOverride?: ObjectResolver
+): {
   fromX: number;
   fromY: number;
   toX: number;
   toY: number;
   isDangling: boolean;
 } {
-  const fromObj = resolver(conn.properties.from_object_id);
-  const toObj = resolver(conn.properties.to_object_id);
+  const resolve = resolverOverride ?? resolver;
+  const fromObj = resolve(conn.properties.from_object_id);
+  const toObj = resolve(conn.properties.to_object_id);
   const isDangling = !fromObj || !toObj;
 
   const from = fromObj
@@ -125,10 +129,18 @@ function pointToSegmentDistSq(
 // ─── Renderer ─────────────────────────────────────────────
 
 export const connectorRenderer: ShapeRenderer = {
-  draw(ctx: CanvasRenderingContext2D, obj: BoardObject, isSelected: boolean): void {
+  draw(
+    ctx: CanvasRenderingContext2D,
+    obj: BoardObject,
+    isSelected: boolean,
+    renderContext?: RenderContext
+  ): void {
     if (!isConnectorObject(obj)) return;
 
-    const { fromX, fromY, toX, toY, isDangling } = resolveEndpoints(obj);
+    const { fromX, fromY, toX, toY, isDangling } = resolveEndpoints(
+      obj,
+      renderContext?.objectResolver
+    );
     const { arrow_style, stroke_style } = obj.properties;
 
     ctx.save();
@@ -175,20 +187,20 @@ export const connectorRenderer: ShapeRenderer = {
     ctx.restore();
   },
 
-  hitTest(obj: BoardObject, wx: number, wy: number): boolean {
+  hitTest(obj: BoardObject, wx: number, wy: number, renderContext?: RenderContext): boolean {
     if (!isConnectorObject(obj)) return false;
 
-    const { fromX, fromY, toX, toY } = resolveEndpoints(obj);
+    const { fromX, fromY, toX, toY } = resolveEndpoints(obj, renderContext?.objectResolver);
     const distSq = pointToSegmentDistSq(wx, wy, fromX, fromY, toX, toY);
     return distSq <= HIT_TOLERANCE * HIT_TOLERANCE;
   },
 
-  getBounds(obj: BoardObject) {
+  getBounds(obj: BoardObject, renderContext?: RenderContext) {
     if (!isConnectorObject(obj)) {
       return { x: obj.x, y: obj.y, width: obj.width, height: obj.height };
     }
 
-    const { fromX, fromY, toX, toY } = resolveEndpoints(obj);
+    const { fromX, fromY, toX, toY } = resolveEndpoints(obj, renderContext?.objectResolver);
     const minX = Math.min(fromX, toX);
     const minY = Math.min(fromY, toY);
     const maxX = Math.max(fromX, toX);
