@@ -107,6 +107,7 @@ export function BoardCanvas({
   const [drawStartWorld, setDrawStartWorld] = useState<{ x: number; y: number } | null>(null);
   const drawToolRef = useRef<ToolType | null>(null);
   const connectorSourceRef = useRef<{ id: string; port: PortName } | null>(null);
+  const currentWorldPosRef = useRef<{ x: number; y: number } | null>(null);
   const animFrameRef = useRef<number>(0);
   const lastResizeBroadcast = useRef(0);
 
@@ -195,18 +196,58 @@ export function BoardCanvas({
         ctx.translate(-cx, -cy);
       }
 
+      ctx.globalAlpha = obj.opacity ?? 1;
       if (hasRenderer(obj.type)) {
         const renderer = getRenderer(obj.type);
         renderer.draw(ctx, obj, isSelected);
       } else {
         drawObjectFallback(ctx, obj, isSelected);
       }
+      ctx.globalAlpha = 1;
       if (isSelected) {
         drawResizeHandles(ctx, obj, camera.zoom);
       }
 
       if (hasRotation) {
         ctx.restore();
+      }
+    }
+
+    // Draw preview during drag-to-create
+    if (isDrawingShape && drawStartWorld && currentWorldPosRef.current) {
+      const cwp = currentWorldPosRef.current;
+      ctx.globalAlpha = 0.3;
+      ctx.fillStyle = "#42A5F5";
+      ctx.strokeStyle = "#1976D2";
+      ctx.lineWidth = 1;
+      const px = Math.min(drawStartWorld.x, cwp.x);
+      const py = Math.min(drawStartWorld.y, cwp.y);
+      const pw = Math.abs(cwp.x - drawStartWorld.x);
+      const ph = Math.abs(cwp.y - drawStartWorld.y);
+
+      if (activeTool === "circle") {
+        ctx.beginPath();
+        ctx.ellipse(px + pw / 2, py + ph / 2, pw / 2, ph / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      } else if (activeTool === "line") {
+        ctx.beginPath();
+        ctx.moveTo(drawStartWorld.x, drawStartWorld.y);
+        ctx.lineTo(cwp.x, cwp.y);
+        ctx.stroke();
+      } else {
+        ctx.fillRect(px, py, pw, ph);
+        ctx.strokeRect(px, py, pw, ph);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // Attach point indicators for connector tool
+    if (activeTool === "connector" && currentWorldPosRef.current) {
+      const wp = currentWorldPosRef.current;
+      const hovered = hitTestFn(wp.x, wp.y, objects);
+      if (hovered && hovered.type !== "connector" && hovered.type !== "line") {
+        drawAttachPoints(ctx, hovered);
       }
     }
 
@@ -221,7 +262,17 @@ export function BoardCanvas({
     }
 
     ctx.restore();
-  }, [objects, camera, selectedIds, cursors, selectionRect, gridVisible]);
+  }, [
+    objects,
+    camera,
+    selectedIds,
+    cursors,
+    selectionRect,
+    gridVisible,
+    isDrawingShape,
+    drawStartWorld,
+    activeTool,
+  ]);
 
   // Dirty-flag rendering: only render when state changes, not every frame
   const dirtyRef = useRef(true);
@@ -383,6 +434,12 @@ export function BoardCanvas({
       const world = screenToWorld(sx, sy);
 
       onCursorMove(world.x, world.y);
+      currentWorldPosRef.current = { x: world.x, y: world.y };
+
+      // Mark dirty during drawing so the preview updates
+      if (isDrawingShape) {
+        dirtyRef.current = true;
+      }
 
       if (isPanning) {
         const dx = e.clientX - dragStart.x;
@@ -765,6 +822,21 @@ function drawSelectionRect(ctx: CanvasRenderingContext2D, rect: SelectionRect) {
   ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
   ctx.setLineDash([]);
   ctx.restore();
+}
+
+function drawAttachPoints(ctx: CanvasRenderingContext2D, obj: BoardObject): void {
+  const ports = [
+    { x: obj.x + obj.width / 2, y: obj.y }, // top
+    { x: obj.x + obj.width, y: obj.y + obj.height / 2 }, // right
+    { x: obj.x + obj.width / 2, y: obj.y + obj.height }, // bottom
+    { x: obj.x, y: obj.y + obj.height / 2 }, // left
+  ];
+  ctx.fillStyle = "#1976D2";
+  for (const p of ports) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 function drawCursor(ctx: CanvasRenderingContext2D, cursor: CursorPosition) {

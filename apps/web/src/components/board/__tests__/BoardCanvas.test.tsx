@@ -29,7 +29,9 @@ const mockContext = {
   scale: vi.fn(),
   arcTo: vi.fn(),
   ellipse: vi.fn(),
+  arc: vi.fn(),
   setLineDash: vi.fn(),
+  globalAlpha: 1,
   measureText: vi.fn(() => ({ width: 50 })),
 };
 

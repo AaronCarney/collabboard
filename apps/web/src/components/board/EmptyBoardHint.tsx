@@ -1,10 +1,14 @@
 import { MousePointerClick, Sparkles, Keyboard, Move, X } from "lucide-react";
 
 interface EmptyBoardHintProps {
+  boardId?: string;
   onDismiss: () => void;
 }
 
-export function EmptyBoardHint({ onDismiss }: EmptyBoardHintProps): React.JSX.Element {
+export function EmptyBoardHint({
+  boardId: _boardId,
+  onDismiss,
+}: EmptyBoardHintProps): React.JSX.Element {
   return (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
       <div className="relative bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200 p-8 max-w-sm text-center">
