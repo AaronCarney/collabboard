@@ -138,7 +138,7 @@ describe("validateToolCallArgs — objectId validation", () => {
 
   it("does not validate fromId or toId fields (handled by executor)", () => {
     const result = validateToolCallArgs(
-      "create_connector",
+      "createConnector",
       { fromId: "nonexistent", toId: "also-nonexistent" },
       []
     );

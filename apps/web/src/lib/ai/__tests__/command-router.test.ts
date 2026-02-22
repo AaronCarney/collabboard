@@ -137,4 +137,98 @@ describe("routeCommand", () => {
 
     expect(result.latencyMs).toBeGreaterThanOrEqual(0);
   });
+
+  // ---- B3: Tool naming — camelCase dispatch ----
+
+  describe("camelCase tool dispatch (B3)", () => {
+    it("dispatches createConnector toolCall (not create_connector) (AC8)", async () => {
+      // Override the generateText mock to return a createConnector tool call
+      const { generateText } = await import("ai");
+      const mockedGenerateText = vi.mocked(generateText);
+      mockedGenerateText.mockResolvedValueOnce({
+        text: "",
+        toolCalls: [
+          {
+            toolName: "createConnector",
+            input: {
+              fromId: "22222222-2222-2222-2222-222222222222",
+              toId: "33333333-3333-3333-3333-333333333333",
+              style: "arrow",
+            },
+          },
+        ],
+        usage: { inputTokens: 50, outputTokens: 25 },
+      } as ReturnType<typeof generateText> extends Promise<infer U> ? U : never);
+
+      const fromObj: BoardObject = {
+        id: "22222222-2222-2222-2222-222222222222",
+        board_id: BOARD_ID,
+        type: "sticky_note",
+        x: 100,
+        y: 100,
+        width: 200,
+        height: 200,
+        rotation: 0,
+        content: "Source",
+        color: "#FFEB3B",
+        version: 1,
+        created_by: USER_ID,
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+        parent_frame_id: null,
+        properties: {},
+      };
+      const toObj: BoardObject = {
+        ...fromObj,
+        id: "33333333-3333-3333-3333-333333333333",
+        x: 500,
+        content: "Target",
+        color: "#90CAF9",
+      };
+
+      const result = await routeCommand({
+        command: "Connect the two notes with an arrow",
+        boardId: BOARD_ID,
+        userId: USER_ID,
+        existingObjects: [fromObj, toObj],
+        viewportCenter: { x: 400, y: 300 },
+      });
+
+      // The router should successfully dispatch camelCase createConnector
+      // and return a connector object
+      expect(result.success).toBe(true);
+      expect(result.objects.length).toBeGreaterThanOrEqual(1);
+      const connector = result.objects.find((o) => o.type === "connector");
+      expect(connector).toBeDefined();
+    });
+
+    it("dispatches deleteObject toolCall (not delete_object) (AC8)", async () => {
+      // Override the generateText mock to return a deleteObject tool call
+      const { generateText } = await import("ai");
+      const mockedGenerateText = vi.mocked(generateText);
+      mockedGenerateText.mockResolvedValueOnce({
+        text: "",
+        toolCalls: [
+          {
+            toolName: "deleteObject",
+            input: { objectId: "22222222-2222-2222-2222-222222222222" },
+          },
+        ],
+        usage: { inputTokens: 50, outputTokens: 25 },
+      } as ReturnType<typeof generateText> extends Promise<infer U> ? U : never);
+
+      const result = await routeCommand({
+        command: "Delete the sticky note",
+        boardId: BOARD_ID,
+        userId: USER_ID,
+        existingObjects: makeObjects(),
+        viewportCenter: { x: 400, y: 300 },
+      });
+
+      // The router should dispatch deleteObject and populate deletedIds
+      expect(result.success).toBe(true);
+      expect(result.deletedIds).toBeDefined();
+      expect(result.deletedIds).toContain("22222222-2222-2222-2222-222222222222");
+    });
+  });
 });

@@ -5,6 +5,7 @@ import { z } from "@collabboard/shared";
 import type { BoardObject } from "@collabboard/shared";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { routeCommand } from "@/lib/ai/command-router";
+import { enqueueForUser } from "@/lib/ai/ai-queue";
 import { classifyError, ERROR_MESSAGES } from "@/lib/ai/error-handler";
 
 const aiCommandRequestSchema = z.object({
@@ -106,14 +107,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   );
 
   try {
-    const result = await routeCommand({
-      command,
-      boardId,
-      userId,
-      existingObjects: existingObjects as BoardObject[],
-      viewportCenter: context?.viewportCenter,
-      selectedObjectIds: safeSelectedIds,
-    });
+    const result = await enqueueForUser(userId, () =>
+      routeCommand({
+        command,
+        boardId,
+        userId,
+        existingObjects: existingObjects as BoardObject[],
+        viewportCenter: context?.viewportCenter,
+        selectedObjectIds: safeSelectedIds,
+      })
+    );
 
     // Persist new/modified objects
     if (result.objects.length > 0) {
@@ -155,6 +158,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         console.warn("[AI] Broadcast failed (non-fatal):", msg); // eslint-disable-line no-console
       } finally {
         await supabaseAdmin.removeChannel(channel);
+      }
+    }
+
+    // Persist deletions
+    if (result.deletedIds && result.deletedIds.length > 0) {
+      const { error: deleteError } = await supabaseAdmin
+        .from("board_objects")
+        .delete()
+        .eq("board_id", boardId)
+        .in("id", result.deletedIds);
+
+      if (deleteError) {
+        return NextResponse.json(
+          { success: false, error: "Failed to delete objects", code: "DB_ERROR" },
+          { status: 500 }
+        );
       }
     }
 

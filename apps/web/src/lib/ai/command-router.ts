@@ -227,14 +227,14 @@ function executeToolCall(
       return executeChangeColor(args as Parameters<typeof executeChangeColor>[0], existingObjects);
     case "getBoardState":
       return null;
-    case "create_connector":
+    case "createConnector":
       return executeCreateConnector(
         args as Parameters<typeof executeCreateConnector>[0],
         boardId,
         userId,
         existingObjects
       );
-    case "delete_object":
+    case "deleteObject":
       return executeDeleteObject(
         args as Parameters<typeof executeDeleteObject>[0],
         existingObjects

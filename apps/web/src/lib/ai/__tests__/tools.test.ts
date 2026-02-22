@@ -371,13 +371,37 @@ describe("AI tools — getToolDefinitions", () => {
     expect(Object.keys(tools)).toHaveLength(10);
   });
 
-  it("includes create_connector tool", () => {
+  it("includes createConnector tool", () => {
     const tools = getToolDefinitions();
-    expect(tools).toHaveProperty("create_connector");
+    expect(tools).toHaveProperty("createConnector");
   });
 
-  it("includes delete_object tool", () => {
+  it("includes deleteObject tool", () => {
     const tools = getToolDefinitions();
-    expect(tools).toHaveProperty("delete_object");
+    expect(tools).toHaveProperty("deleteObject");
+  });
+});
+
+// ─── B3: Tool naming — camelCase enforcement ────────────────
+
+describe("AI tools — getToolDefinitions camelCase naming (B3)", () => {
+  it("uses createConnector (camelCase) instead of create_connector (AC7)", () => {
+    const tools = getToolDefinitions();
+    expect(tools).toHaveProperty("createConnector");
+    expect(tools).not.toHaveProperty("create_connector");
+  });
+
+  it("uses deleteObject (camelCase) instead of delete_object (AC7)", () => {
+    const tools = getToolDefinitions();
+    expect(tools).toHaveProperty("deleteObject");
+    expect(tools).not.toHaveProperty("delete_object");
+  });
+
+  it("all tool names are camelCase (no underscores)", () => {
+    const tools = getToolDefinitions();
+    const names = Object.keys(tools);
+    for (const name of names) {
+      expect(name).not.toContain("_");
+    }
   });
 });

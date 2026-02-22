@@ -300,11 +300,11 @@ export function getToolDefinitions() {
       description: "Get the current state of all objects on the board",
       inputSchema: getBoardStateParams,
     }),
-    create_connector: tool({
+    createConnector: tool({
       description: "Create a connector between two existing objects",
       inputSchema: createConnectorParams,
     }),
-    delete_object: tool({
+    deleteObject: tool({
       description: "Delete an existing object from the board",
       inputSchema: deleteObjectParams,
     }),

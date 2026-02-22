@@ -26,6 +26,11 @@ vi.mock("@/lib/ai/command-router", () => ({
   routeCommand: (...args: unknown[]): unknown => mockRouteCommand(...args),
 }));
 
+const mockEnqueueForUser = vi.fn();
+vi.mock("@/lib/ai/ai-queue", () => ({
+  enqueueForUser: (...args: unknown[]): unknown => mockEnqueueForUser(...args),
+}));
+
 const BOARD_ID = "11111111-1111-1111-1111-111111111111";
 const OWNER_ID = "user-owner";
 const OTHER_USER_ID = "user-other";
@@ -102,6 +107,7 @@ describe("POST /api/ai/command", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRouteCommand.mockResolvedValue(defaultRouteResult());
+    mockEnqueueForUser.mockImplementation((_userId: string, fn: () => Promise<unknown>) => fn());
   });
 
   // ---- Auth ----
@@ -318,5 +324,214 @@ describe("POST /api/ai/command", () => {
 
     expect(res.status).toBe(400);
     expect(json.code).toBe("INVALID_COMMAND");
+  });
+
+  // ---- B1: Deletion persistence ----
+
+  describe("deletion persistence (B1)", () => {
+    function setupBoardQueryWithDelete(options?: {
+      deleteError?: { message: string } | null;
+      upsertError?: { message: string } | null;
+    }): {
+      mockDelete: ReturnType<typeof vi.fn>;
+      mockIn: ReturnType<typeof vi.fn>;
+      mockUpsert: ReturnType<typeof vi.fn>;
+    } {
+      const mockIn = vi.fn().mockResolvedValue({
+        error: options?.deleteError ?? null,
+      });
+      const mockEqDelete = vi.fn().mockReturnValue({ in: mockIn });
+      const mockDelete = vi.fn().mockReturnValue({ eq: mockEqDelete });
+      const mockUpsert = vi.fn().mockResolvedValue({
+        error: options?.upsertError ?? null,
+      });
+
+      const boardChain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({
+          data: { id: BOARD_ID, created_by: OWNER_ID },
+          error: null,
+        }),
+      };
+
+      const objectsChain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+        upsert: mockUpsert,
+        delete: mockDelete,
+      };
+
+      mockFrom.mockImplementation((table: string) => {
+        if (table === "boards") {
+          return boardChain;
+        }
+        if (table === "board_objects") {
+          return objectsChain;
+        }
+        return boardChain;
+      });
+
+      return { mockDelete, mockIn, mockUpsert };
+    }
+
+    it("deletes objects from board_objects when routeCommand returns deletedIds (AC1)", async () => {
+      mockAuth.mockResolvedValue({ userId: OWNER_ID });
+      const { mockDelete, mockIn } = setupBoardQueryWithDelete();
+
+      const deletedIds = [
+        "aaaa1111-1111-1111-1111-111111111111",
+        "bbbb2222-2222-2222-2222-222222222222",
+      ];
+      mockRouteCommand.mockResolvedValue({
+        ...defaultRouteResult(),
+        deletedIds,
+      });
+
+      const { POST } = await import("../route");
+      const res = await POST(makeRequest({ boardId: BOARD_ID, command: "delete these" }));
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(json.success).toBe(true);
+      expect(mockDelete).toHaveBeenCalled();
+      expect(mockIn).toHaveBeenCalledWith("id", deletedIds);
+    });
+
+    it("calls both upsert and delete when routeCommand returns objects AND deletedIds (AC2)", async () => {
+      mockAuth.mockResolvedValue({ userId: OWNER_ID });
+      const { mockDelete, mockIn, mockUpsert } = setupBoardQueryWithDelete();
+      setupBroadcastChannel("SUBSCRIBED");
+
+      const testObjects = [{ id: "obj-new", type: "sticky_note" }];
+      const deletedIds = ["obj-old-1"];
+      mockRouteCommand.mockResolvedValue({
+        ...defaultRouteResult(),
+        objects: testObjects,
+        deletedIds,
+      });
+
+      const { POST } = await import("../route");
+      const res = await POST(makeRequest({ boardId: BOARD_ID, command: "replace objects" }));
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(json.success).toBe(true);
+      expect(mockUpsert).toHaveBeenCalledWith(testObjects);
+      expect(mockDelete).toHaveBeenCalled();
+      expect(mockIn).toHaveBeenCalledWith("id", deletedIds);
+    });
+
+    it("returns error when delete query fails — no partial success (AC3)", async () => {
+      mockAuth.mockResolvedValue({ userId: OWNER_ID });
+      setupBoardQueryWithDelete({ deleteError: { message: "constraint violation" } });
+
+      const deletedIds = ["obj-to-delete"];
+      mockRouteCommand.mockResolvedValue({
+        ...defaultRouteResult(),
+        deletedIds,
+      });
+
+      const { POST } = await import("../route");
+      const res = await POST(makeRequest({ boardId: BOARD_ID, command: "delete this" }));
+      const json = await res.json();
+
+      expect(res.status).toBe(500);
+      expect(json.success).toBe(false);
+    });
+  });
+
+  // ---- B2: Concurrency queue ----
+
+  describe("concurrency queue (B2)", () => {
+    it("calls routeCommand via enqueueForUser, not directly (AC4)", async () => {
+      mockAuth.mockResolvedValue({ userId: OWNER_ID });
+      setupBoardQuery({ id: BOARD_ID, created_by: OWNER_ID });
+
+      // enqueueForUser should be called with the userId and a function
+      // that eventually calls routeCommand
+      mockEnqueueForUser.mockImplementation((_userId: string, fn: () => Promise<unknown>) => fn());
+      mockRouteCommand.mockResolvedValue(defaultRouteResult());
+
+      const { POST } = await import("../route");
+      await POST(makeRequest({ boardId: BOARD_ID, command: "test" }));
+
+      expect(mockEnqueueForUser).toHaveBeenCalledWith(OWNER_ID, expect.any(Function));
+    });
+
+    it("second command still executes if first command fails (AC5)", async () => {
+      mockAuth.mockResolvedValue({ userId: OWNER_ID });
+      setupBoardQuery({ id: BOARD_ID, created_by: OWNER_ID });
+
+      let callCount = 0;
+      mockEnqueueForUser.mockImplementation((_userId: string, fn: () => Promise<unknown>) => {
+        callCount++;
+        return fn();
+      });
+
+      // First call fails
+      mockRouteCommand.mockRejectedValueOnce(new Error("transient failure"));
+      // Second call succeeds
+      mockRouteCommand.mockResolvedValueOnce(defaultRouteResult());
+
+      const { POST } = await import("../route");
+
+      // First request — should fail but not block queue
+      await POST(makeRequest({ boardId: BOARD_ID, command: "fail" }));
+
+      // Second request — should succeed
+      const res2 = await POST(makeRequest({ boardId: BOARD_ID, command: "succeed" }));
+      const json2 = await res2.json();
+
+      expect(callCount).toBe(2);
+      expect(json2.success).toBe(true);
+    });
+
+    it("commands from different users do not block each other (AC6)", async () => {
+      mockAuth.mockResolvedValueOnce({ userId: OWNER_ID });
+      mockAuth.mockResolvedValueOnce({ userId: OTHER_USER_ID });
+
+      // Set up board to accept both users as owners for testing purposes
+      const boardChain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi
+          .fn()
+          .mockResolvedValueOnce({ data: { id: BOARD_ID, created_by: OWNER_ID }, error: null })
+          .mockResolvedValueOnce({
+            data: { id: BOARD_ID, created_by: OTHER_USER_ID },
+            error: null,
+          }),
+      };
+      const objectsChain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+        upsert: vi.fn().mockResolvedValue({ error: null }),
+      };
+      mockFrom.mockImplementation((table: string) => {
+        if (table === "boards") {
+          return boardChain;
+        }
+        return objectsChain;
+      });
+
+      const enqueueUserIds: string[] = [];
+      mockEnqueueForUser.mockImplementation((userId: string, fn: () => Promise<unknown>) => {
+        enqueueUserIds.push(userId);
+        return fn();
+      });
+      mockRouteCommand.mockResolvedValue(defaultRouteResult());
+
+      const { POST } = await import("../route");
+
+      await Promise.all([
+        POST(makeRequest({ boardId: BOARD_ID, command: "cmd1" })),
+        POST(makeRequest({ boardId: BOARD_ID, command: "cmd2" })),
+      ]);
+
+      // enqueueForUser should have been called with different user IDs
+      expect(enqueueUserIds).toContain(OWNER_ID);
+      expect(enqueueUserIds).toContain(OTHER_USER_ID);
+    });
   });
 });
