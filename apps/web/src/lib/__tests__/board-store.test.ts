@@ -779,7 +779,7 @@ describe("useBoardStore — moveObjects", () => {
       ]);
     });
 
-    // Still broadcasts for realtime collaboration
+    // First non-persist call broadcasts immediately (leading edge of throttle)
     expect(mockRealtimeChannelSend).toHaveBeenCalledTimes(2);
 
     // But does NOT persist to REST (saves DB writes during drag)
@@ -788,6 +788,81 @@ describe("useBoardStore — moveObjects", () => {
     // State is still updated locally
     expect(result.current.objects[0].x).toBe(50);
     expect(result.current.objects[1].x).toBe(200);
+  });
+
+  it("throttles broadcasts during rapid non-persist moves", async () => {
+    vi.useFakeTimers();
+    const { v4 } = await import("uuid");
+    (v4 as ReturnType<typeof vi.fn>).mockReturnValueOnce("obj-a");
+
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    act(() => {
+      result.current.subscribe();
+    });
+
+    await act(async () => {
+      await result.current.createObject("rectangle", 0, 0);
+    });
+
+    mockRealtimeChannelSend.mockClear();
+
+    // First move — broadcasts immediately (leading edge)
+    act(() => {
+      result.current.moveObjects([{ id: "obj-a", x: 10, y: 10 }]);
+    });
+    expect(mockRealtimeChannelSend).toHaveBeenCalledTimes(1);
+
+    // Rapid subsequent moves within 50ms — should NOT broadcast
+    act(() => {
+      result.current.moveObjects([{ id: "obj-a", x: 20, y: 20 }]);
+    });
+    act(() => {
+      result.current.moveObjects([{ id: "obj-a", x: 30, y: 30 }]);
+    });
+    // Still only the leading-edge broadcast
+    expect(mockRealtimeChannelSend).toHaveBeenCalledTimes(1);
+
+    // Local state should reflect latest position
+    expect(result.current.objects[0].x).toBe(30);
+
+    // After throttle interval, trailing-edge fires with latest position
+    act(() => {
+      vi.advanceTimersByTime(60);
+    });
+    expect(mockRealtimeChannelSend).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+
+  it("always broadcasts when persist is true (mouseup)", async () => {
+    vi.useFakeTimers();
+    const { v4 } = await import("uuid");
+    (v4 as ReturnType<typeof vi.fn>).mockReturnValueOnce("obj-a");
+
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    act(() => {
+      result.current.subscribe();
+    });
+
+    await act(async () => {
+      await result.current.createObject("rectangle", 0, 0);
+    });
+
+    mockRealtimeChannelSend.mockClear();
+
+    // persist=true should always broadcast, regardless of throttle state
+    act(() => {
+      result.current.moveObjects([{ id: "obj-a", x: 50, y: 50 }], true);
+    });
+    expect(mockRealtimeChannelSend).toHaveBeenCalledTimes(1);
+
+    vi.useRealTimers();
   });
 });
 

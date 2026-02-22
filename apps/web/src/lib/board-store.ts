@@ -117,6 +117,8 @@ export function useBoardStore(
   const channelRef = useRef<ReturnType<typeof realtimeSupabase.channel> | null>(null);
   const subscribedRef = useRef(false);
   const historyRef = useRef<CommandHistory>(createCommandHistory());
+  const broadcastThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastBroadcastTimeRef = useRef(0);
   const [historyVersion, setHistoryVersion] = useState(0);
 
   const userColor = USER_COLORS[Math.abs(hashCode(userId)) % USER_COLORS.length];
@@ -459,10 +461,32 @@ export function useBoardStore(
     [userId, supabase]
   );
 
+  const broadcastMoves = useCallback(
+    (updatedObjects: BoardObject[]) => {
+      if (!subscribedRef.current) return;
+      for (const updated of updatedObjects) {
+        channelRef.current
+          ?.send({
+            type: "broadcast",
+            event: "object:upsert",
+            payload: { ...updated, _source: userId },
+          })
+          .catch((err: unknown) => {
+            console.warn("[Broadcast] move send failed:", err); // eslint-disable-line no-console
+          });
+      }
+    },
+    [userId]
+  );
+
+  const BROADCAST_THROTTLE_MS = 50;
+
   const moveObjects = useCallback(
     (moves: { id: string; x: number; y: number }[], persist = false) => {
       if (DEBUG_REALTIME)
         console.log("[Realtime] moveObjects batch:", moves.length, "objects, persist:", persist); // eslint-disable-line no-console
+
+      // Apply moves to local state
       setObjectsMap((prev) => {
         const next = new Map(prev);
         let changed = false;
@@ -480,18 +504,6 @@ export function useBoardStore(
 
           next.set(move.id, updated);
 
-          if (subscribedRef.current) {
-            channelRef.current
-              ?.send({
-                type: "broadcast",
-                event: "object:upsert",
-                payload: { ...updated, _source: userId },
-              })
-              .catch((err: unknown) => {
-                console.warn("[Broadcast] move send failed:", err); // eslint-disable-line no-console
-              });
-          }
-
           if (persist) {
             void supabase
               .from("board_objects")
@@ -506,8 +518,50 @@ export function useBoardStore(
         }
         return changed ? next : prev;
       });
+
+      // Read the just-updated objects from the synchronous ref for broadcast
+      const getUpdatedObjects = (): BoardObject[] => {
+        const result: BoardObject[] = [];
+        for (const move of moves) {
+          const obj = objectsMapRef.current.get(move.id);
+          if (obj) {
+            result.push(obj);
+          }
+        }
+        return result;
+      };
+
+      // Broadcast: always on persist (mouseup), throttled during drag
+      if (persist) {
+        // Clear any pending throttled broadcast
+        if (broadcastThrottleRef.current) {
+          clearTimeout(broadcastThrottleRef.current);
+          broadcastThrottleRef.current = null;
+        }
+        broadcastMoves(getUpdatedObjects());
+        lastBroadcastTimeRef.current = Date.now();
+      } else {
+        const now = Date.now();
+        const elapsed = now - lastBroadcastTimeRef.current;
+
+        if (elapsed >= BROADCAST_THROTTLE_MS) {
+          // Leading edge: broadcast immediately
+          broadcastMoves(getUpdatedObjects());
+          lastBroadcastTimeRef.current = now;
+        } else {
+          // Schedule trailing-edge broadcast with latest positions
+          if (broadcastThrottleRef.current) {
+            clearTimeout(broadcastThrottleRef.current);
+          }
+          broadcastThrottleRef.current = setTimeout(() => {
+            broadcastThrottleRef.current = null;
+            broadcastMoves(getUpdatedObjects());
+            lastBroadcastTimeRef.current = Date.now();
+          }, BROADCAST_THROTTLE_MS - elapsed);
+        }
+      }
     },
-    [userId, supabase]
+    [supabase, broadcastMoves]
   );
 
   const deleteObject = useCallback(
