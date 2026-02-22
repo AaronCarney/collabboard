@@ -193,4 +193,30 @@ describe("MenuBar", () => {
     fireEvent.click(screen.getByText("Export as PNG"));
     expect(exportFn).toHaveBeenCalled();
   });
+
+  it("navigates to dashboard when New Board is clicked", async () => {
+    const { useRouter } = await import("next/navigation");
+    const mockPush = vi.fn();
+    (useRouter as ReturnType<typeof vi.fn>).mockReturnValue({
+      push: mockPush,
+      back: vi.fn(),
+      replace: vi.fn(),
+    });
+
+    renderWithContext(<MenuBar boardName="Test" onBoardNameChange={vi.fn()} />, ctx);
+    fireEvent.click(screen.getByText("File"));
+    fireEvent.click(screen.getByText("New Board"));
+    expect(mockPush).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("calls onDuplicateBoard when Duplicate Board is clicked", () => {
+    const onDuplicate = vi.fn();
+    renderWithContext(
+      <MenuBar boardName="Test" onBoardNameChange={vi.fn()} onDuplicateBoard={onDuplicate} />,
+      ctx
+    );
+    fireEvent.click(screen.getByText("File"));
+    fireEvent.click(screen.getByText("Duplicate Board"));
+    expect(onDuplicate).toHaveBeenCalled();
+  });
 });

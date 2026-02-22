@@ -13,6 +13,7 @@ interface MenuBarProps {
   onBoardNameChange: (name: string) => void;
   onShareClick?: () => void;
   onShowShortcuts?: () => void;
+  onDuplicateBoard?: () => void;
 }
 
 interface MenuItem {
@@ -34,6 +35,7 @@ export function MenuBar({
   onBoardNameChange,
   onShareClick,
   onShowShortcuts,
+  onDuplicateBoard,
 }: MenuBarProps): React.JSX.Element {
   const ctx = useBoardContext();
   const router = useRouter();
@@ -81,8 +83,20 @@ export function MenuBar({
   }, []);
 
   const fileItems: MenuItem[] = [
-    { label: "New Board", onClick: closeMenu },
-    { label: "Duplicate Board", onClick: closeMenu },
+    {
+      label: "New Board",
+      onClick: () => {
+        router.push("/dashboard");
+        setOpenMenu(null);
+      },
+    },
+    {
+      label: "Duplicate Board",
+      onClick: () => {
+        onDuplicateBoard?.();
+        setOpenMenu(null);
+      },
+    },
     {
       label: "Export as PNG",
       onClick: () => {
