@@ -72,6 +72,22 @@ describe("rectangleRenderer", () => {
       rectangleRenderer.draw(ctx, obj, true);
       expect(ctx.strokeRect).toHaveBeenCalledWith(100, 100, 200, 150);
     });
+
+    it("applies strokeColor and strokeWidth when set", () => {
+      const obj = makeRectangle({ strokeColor: "#FF0000", strokeWidth: 3 });
+      rectangleRenderer.draw(ctx, obj, false);
+      expect(ctx.strokeRect).toHaveBeenCalledWith(100, 100, 200, 150);
+      // strokeStyle should be set to the custom color
+      expect(ctx.strokeStyle).toBe("#FF0000");
+      expect(ctx.lineWidth).toBe(3);
+    });
+
+    it("does not stroke when strokeColor is not set", () => {
+      const obj = makeRectangle();
+      rectangleRenderer.draw(ctx, obj, false);
+      // Without selection and without strokeColor, no strokeRect call
+      expect(ctx.strokeRect).not.toHaveBeenCalled();
+    });
   });
 
   describe("hitTest()", () => {

@@ -82,6 +82,20 @@ describe("stickyNoteRenderer", () => {
       stickyNoteRenderer.draw(ctx, obj, false);
       expect(ctx.fillText).toHaveBeenCalled();
     });
+
+    it("applies strokeColor and strokeWidth when set", () => {
+      const obj = makeStickyNote({ strokeColor: "#0000FF", strokeWidth: 2 });
+      stickyNoteRenderer.draw(ctx, obj, false);
+      expect(ctx.stroke).toHaveBeenCalled();
+      expect(ctx.strokeStyle).toBe("#0000FF");
+      expect(ctx.lineWidth).toBe(2);
+    });
+
+    it("does not stroke when strokeColor is not set and not selected", () => {
+      const obj = makeStickyNote();
+      stickyNoteRenderer.draw(ctx, obj, false);
+      expect(ctx.stroke).not.toHaveBeenCalled();
+    });
   });
 
   describe("hitTest()", () => {

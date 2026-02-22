@@ -389,6 +389,56 @@ describe("hitTestHandle", () => {
     const result = hitTestHandle(200, 98, rect, 8);
     expect(result).toBe("n");
   });
+
+  it("accounts for rotation when testing handles", () => {
+    // Object: x=100, y=100, w=200, h=150, center=(200, 175)
+    // Rotated 90° (π/2). SE handle in local frame is at (300, 250).
+    // Relative to center: (100, 75). After 90° rotation: (-75, 100).
+    // In world coords: (200-75, 175+100) = (125, 275).
+    const rotatedRect = makeObject({
+      id: "r-rot",
+      type: "rectangle",
+      x: 100,
+      y: 100,
+      width: 200,
+      height: 150,
+      rotation: Math.PI / 2,
+    });
+
+    // Clicking near the rotated SE handle position (125, 275) should hit
+    const result = hitTestHandle(125, 275, rotatedRect, 8);
+    expect(result).toBe("se");
+  });
+
+  it("misses handles at unrotated position when object is rotated", () => {
+    const rotatedRect = makeObject({
+      id: "r-rot2",
+      type: "rectangle",
+      x: 100,
+      y: 100,
+      width: 200,
+      height: 150,
+      rotation: Math.PI / 2,
+    });
+
+    // SE handle would be at (300, 250) without rotation — should miss now
+    const result = hitTestHandle(300, 250, rotatedRect, 8);
+    expect(result).toBeNull();
+  });
+
+  it("works correctly with zero rotation (backward compatible)", () => {
+    const noRotation = makeObject({
+      id: "r-norot",
+      type: "rectangle",
+      x: 100,
+      y: 100,
+      width: 200,
+      height: 150,
+      rotation: 0,
+    });
+    // SE corner at (300, 250) — same as non-rotated behavior
+    expect(hitTestHandle(302, 248, noRotation, 8)).toBe("se");
+  });
 });
 
 // ─────────────────────────────────────────────────────────────

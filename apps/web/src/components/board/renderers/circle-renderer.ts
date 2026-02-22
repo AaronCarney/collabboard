@@ -17,6 +17,11 @@ export const circleRenderer: ShapeRenderer = {
     );
     ctx.fillStyle = obj.color;
     ctx.fill();
+    if (obj.strokeColor) {
+      ctx.strokeStyle = obj.strokeColor;
+      ctx.lineWidth = obj.strokeWidth ?? 1;
+      ctx.stroke();
+    }
     if (isSelected) {
       ctx.strokeStyle = "#3b82f6";
       ctx.lineWidth = 3;

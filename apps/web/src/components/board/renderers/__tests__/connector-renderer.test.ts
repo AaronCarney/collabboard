@@ -250,6 +250,55 @@ describe("connectorRenderer", () => {
       expect(bounds.width).toBe(200);
       expect(bounds.height).toBe(100);
     });
+
+    it("returns minimum dimensions for horizontal connector (zero height)", () => {
+      // Two rects at the same y so connector is horizontal
+      const rectH1 = makeRect({ id: "rh1", x: 0, y: 100, width: 100, height: 100 });
+      const rectH2 = makeRect({ id: "rh2", x: 300, y: 100, width: 100, height: 100 });
+      const objectMap = new Map<string, BoardObject>([
+        [rectH1.id, rectH1],
+        [rectH2.id, rectH2],
+      ]);
+      setObjectResolver((id: string) => objectMap.get(id) ?? null);
+
+      const conn = makeConnector({
+        properties: {
+          from_object_id: "rh1",
+          to_object_id: "rh2",
+          from_port: "right",
+          to_port: "left",
+          arrow_style: "none",
+          stroke_style: "solid",
+        },
+      });
+      const bounds = connectorRenderer.getBounds(conn);
+      // From right of rh1 (100,150) to left of rh2 (300,150) — same Y
+      expect(bounds.height).toBeGreaterThanOrEqual(1);
+    });
+
+    it("returns minimum dimensions for vertical connector (zero width)", () => {
+      const rectV1 = makeRect({ id: "rv1", x: 100, y: 0, width: 100, height: 100 });
+      const rectV2 = makeRect({ id: "rv2", x: 100, y: 300, width: 100, height: 100 });
+      const objectMap = new Map<string, BoardObject>([
+        [rectV1.id, rectV1],
+        [rectV2.id, rectV2],
+      ]);
+      setObjectResolver((id: string) => objectMap.get(id) ?? null);
+
+      const conn = makeConnector({
+        properties: {
+          from_object_id: "rv1",
+          to_object_id: "rv2",
+          from_port: "bottom",
+          to_port: "top",
+          arrow_style: "none",
+          stroke_style: "solid",
+        },
+      });
+      const bounds = connectorRenderer.getBounds(conn);
+      // From bottom of rv1 (150,100) to top of rv2 (150,300) — same X
+      expect(bounds.width).toBeGreaterThanOrEqual(1);
+    });
   });
 
   describe("getResizeHandles()", () => {

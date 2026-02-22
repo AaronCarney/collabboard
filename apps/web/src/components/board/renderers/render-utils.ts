@@ -53,7 +53,7 @@ export function roundRectPath(
   ctx.closePath();
 }
 
-/** Word-wrap text into a constrained width. */
+/** Word-wrap text into a constrained width, respecting explicit newlines. */
 export function wrapText(
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -62,20 +62,25 @@ export function wrapText(
   maxWidth: number,
   lineHeight: number
 ): void {
-  const words = text.split(" ");
-  let line = "";
+  const paragraphs = text.split("\n");
   let currentY = y;
 
-  for (const word of words) {
-    const testLine = line + word + " ";
-    const metrics = ctx.measureText(testLine);
-    if (metrics.width > maxWidth && line) {
-      ctx.fillText(line.trim(), x, currentY);
-      line = word + " ";
-      currentY += lineHeight;
-    } else {
-      line = testLine;
+  for (const paragraph of paragraphs) {
+    const words = paragraph.split(" ");
+    let line = "";
+
+    for (const word of words) {
+      const testLine = line + word + " ";
+      const metrics = ctx.measureText(testLine);
+      if (metrics.width > maxWidth && line) {
+        ctx.fillText(line.trim(), x, currentY);
+        line = word + " ";
+        currentY += lineHeight;
+      } else {
+        line = testLine;
+      }
     }
+    ctx.fillText(line.trim(), x, currentY);
+    currentY += lineHeight;
   }
-  ctx.fillText(line.trim(), x, currentY);
 }

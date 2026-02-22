@@ -24,6 +24,13 @@ export const stickyNoteRenderer: ShapeRenderer = {
 
     ctx.shadowColor = "transparent";
 
+    if (obj.strokeColor) {
+      ctx.strokeStyle = obj.strokeColor;
+      ctx.lineWidth = obj.strokeWidth ?? 1;
+      roundRectPath(ctx, obj.x, obj.y, obj.width, obj.height, 8);
+      ctx.stroke();
+    }
+
     if (isSelected) {
       ctx.strokeStyle = "#3b82f6";
       ctx.lineWidth = 3;

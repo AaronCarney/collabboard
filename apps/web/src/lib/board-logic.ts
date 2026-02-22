@@ -152,9 +152,26 @@ export function hitTestHandle(
   obj: BoardObject,
   handleSize: number
 ): HandlePosition | null {
+  // Inverse-rotate mouse point into the object's local coordinate frame
+  // so handle hit testing works correctly for rotated objects.
+  const rotation = obj.rotation;
+  let localX = wx;
+  let localY = wy;
+
+  if (rotation !== 0) {
+    const cx = obj.x + obj.width / 2;
+    const cy = obj.y + obj.height / 2;
+    const cos = Math.cos(-rotation);
+    const sin = Math.sin(-rotation);
+    const dx = wx - cx;
+    const dy = wy - cy;
+    localX = cos * dx - sin * dy + cx;
+    localY = sin * dx + cos * dy + cy;
+  }
+
   const handles = getResizeHandles(obj);
   for (const handle of handles) {
-    if (Math.abs(wx - handle.x) <= handleSize && Math.abs(wy - handle.y) <= handleSize) {
+    if (Math.abs(localX - handle.x) <= handleSize && Math.abs(localY - handle.y) <= handleSize) {
       return handle.position;
     }
   }

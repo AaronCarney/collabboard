@@ -76,6 +76,20 @@ describe("circleRenderer", () => {
       circleRenderer.draw(ctx, obj, true);
       expect(ctx.stroke).toHaveBeenCalled();
     });
+
+    it("applies strokeColor and strokeWidth when set", () => {
+      const obj = makeCircle({ strokeColor: "#FF0000", strokeWidth: 4 });
+      circleRenderer.draw(ctx, obj, false);
+      expect(ctx.stroke).toHaveBeenCalled();
+      expect(ctx.strokeStyle).toBe("#FF0000");
+      expect(ctx.lineWidth).toBe(4);
+    });
+
+    it("does not stroke when strokeColor is not set and not selected", () => {
+      const obj = makeCircle();
+      circleRenderer.draw(ctx, obj, false);
+      expect(ctx.stroke).not.toHaveBeenCalled();
+    });
   });
 
   describe("hitTest()", () => {

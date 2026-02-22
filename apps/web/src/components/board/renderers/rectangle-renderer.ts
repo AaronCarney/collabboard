@@ -7,6 +7,11 @@ export const rectangleRenderer: ShapeRenderer = {
     ctx.save();
     ctx.fillStyle = obj.color;
     ctx.fillRect(obj.x, obj.y, obj.width, obj.height);
+    if (obj.strokeColor) {
+      ctx.strokeStyle = obj.strokeColor;
+      ctx.lineWidth = obj.strokeWidth ?? 1;
+      ctx.strokeRect(obj.x, obj.y, obj.width, obj.height);
+    }
     if (isSelected) {
       ctx.strokeStyle = "#3b82f6";
       ctx.lineWidth = 3;
