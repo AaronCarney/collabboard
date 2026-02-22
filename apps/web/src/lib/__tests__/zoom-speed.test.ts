@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { getZoomFactor, getZoomSpeed, setZoomSpeed } from "@/lib/zoom-speed";
+import { getZoomFactor, getZoomSpeed, setZoomSpeed, getZoomSensitivity } from "@/lib/zoom-speed";
 import type { ZoomSpeedLevel } from "@/lib/zoom-speed";
 
 describe("zoom-speed", () => {
@@ -52,6 +52,33 @@ describe("zoom-speed", () => {
     it("returns 'normal' for invalid stored value", () => {
       localStorage.setItem("collabboard:zoom-speed", "turbo");
       expect(getZoomSpeed()).toBe("normal");
+    });
+  });
+
+  describe("getZoomSensitivity", () => {
+    it("returns a sensitivity multiplier for exponential zoom", () => {
+      const sensitivity = getZoomSensitivity("normal");
+      // A larger delta should produce a larger zoom factor via Math.exp(delta * sensitivity)
+      const smallDelta = 0.05;
+      const largeDelta = 0.2;
+      const smallFactor = Math.exp(smallDelta * sensitivity);
+      const largeFactor = Math.exp(largeDelta * sensitivity);
+      expect(largeFactor).toBeGreaterThan(smallFactor);
+      expect(smallFactor).toBeGreaterThan(1);
+    });
+
+    it("slow sensitivity produces smaller zoom change than normal", () => {
+      const delta = 0.1;
+      const slowFactor = Math.exp(delta * getZoomSensitivity("slow"));
+      const normalFactor = Math.exp(delta * getZoomSensitivity("normal"));
+      expect(normalFactor).toBeGreaterThan(slowFactor);
+    });
+
+    it("fast sensitivity produces larger zoom change than normal", () => {
+      const delta = 0.1;
+      const normalFactor = Math.exp(delta * getZoomSensitivity("normal"));
+      const fastFactor = Math.exp(delta * getZoomSensitivity("fast"));
+      expect(fastFactor).toBeGreaterThan(normalFactor);
     });
   });
 

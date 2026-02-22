@@ -17,6 +17,7 @@ import {
 import { findContainingFrame } from "@/lib/frame-containment";
 import { exportBoardAsPng } from "@/lib/export-png";
 import { validateShareToken, isReadOnlyAccess } from "@/lib/share-access";
+import { getZoomSensitivity } from "@/lib/zoom-speed";
 import { useBoardStore } from "@/lib/board-store";
 import { createBoardKeyHandler, isTextInputFocused } from "@/lib/board-keyboard";
 import { createClerkSupabaseClient, createRealtimeClient } from "@/lib/supabase";
@@ -401,10 +402,10 @@ export default function BoardPage() {
   const handleZoom = useCallback(
     (delta: number, cx: number, cy: number) => {
       store.setCamera((prev) => {
-        // Proportional zoom: multiply by a factor rather than adding a delta.
+        // Exponential zoom: magnitude-aware for smooth trackpad/pinch support.
         // delta > 0 means zoom in (scroll up), delta < 0 means zoom out.
-        // Use 1.1 per wheel step for smooth scrolling (MenuBar uses 1.2).
-        const factor = delta > 0 ? 1.1 : 1 / 1.1;
+        const sensitivity = getZoomSensitivity();
+        const factor = Math.exp(delta * sensitivity);
         const newZoom = Math.max(0.02, Math.min(20, prev.zoom * factor));
         const scale = newZoom / prev.zoom;
         return {

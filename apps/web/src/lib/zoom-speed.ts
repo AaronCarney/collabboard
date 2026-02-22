@@ -23,6 +23,21 @@ export function getZoomSpeed(): ZoomSpeedLevel {
   return "normal";
 }
 
+/** Sensitivity multiplier for exponential zoom: factor = Math.exp(delta * sensitivity). */
+export function getZoomSensitivity(level?: ZoomSpeedLevel): number {
+  const speed = level ?? getZoomSpeed();
+  switch (speed) {
+    case "slow":
+      return 0.5;
+    case "normal":
+      return 1.0;
+    case "fast":
+      return 2.5;
+    default:
+      return 1.0;
+  }
+}
+
 export function setZoomSpeed(speed: ZoomSpeedLevel): void {
   localStorage.setItem(ZOOM_SPEED_KEY, speed);
 }
