@@ -5,7 +5,9 @@ export type ObjectType =
   | "text"
   | "line"
   | "connector"
-  | "frame";
+  | "frame"
+  | "triangle"
+  | "star";
 
 export type ToolType =
   | "select"
@@ -16,7 +18,9 @@ export type ToolType =
   | "text"
   | "line"
   | "connector"
-  | "frame";
+  | "frame"
+  | "triangle"
+  | "star";
 
 interface BaseObject {
   id: string;
@@ -94,6 +98,16 @@ export interface FrameObject extends BaseObject {
   properties: Record<string, never>;
 }
 
+export interface TriangleObject extends BaseObject {
+  type: "triangle";
+  properties: Record<string, never>;
+}
+
+export interface StarObject extends BaseObject {
+  type: "star";
+  properties: Record<string, never>;
+}
+
 export type BoardObject =
   | StickyNoteObject
   | RectangleObject
@@ -101,7 +115,9 @@ export type BoardObject =
   | TextObject
   | LineObject
   | ConnectorObject
-  | FrameObject;
+  | FrameObject
+  | TriangleObject
+  | StarObject;
 
 export interface Board {
   id: string;
@@ -190,6 +206,24 @@ export const OBJECT_DEFAULTS: Record<ObjectType, Partial<BoardObject>> = {
     width: 400,
     height: 300,
     color: "#E0E0E0",
+    content: "",
+    opacity: 1,
+    fontSize: 16,
+    fontFamily: "sans-serif",
+  },
+  triangle: {
+    width: 200,
+    height: 173,
+    color: "#FF7043",
+    content: "",
+    opacity: 1,
+    fontSize: 16,
+    fontFamily: "sans-serif",
+  },
+  star: {
+    width: 200,
+    height: 200,
+    color: "#AB47BC",
     content: "",
     opacity: 1,
     fontSize: 16,

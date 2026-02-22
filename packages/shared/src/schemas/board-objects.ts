@@ -74,6 +74,16 @@ export const frameSchema = baseObjectSchema.extend({
   properties: emptyPropertiesSchema,
 });
 
+export const triangleSchema = baseObjectSchema.extend({
+  type: z.literal("triangle"),
+  properties: emptyPropertiesSchema,
+});
+
+export const starSchema = baseObjectSchema.extend({
+  type: z.literal("star"),
+  properties: emptyPropertiesSchema,
+});
+
 export const boardObjectSchema = z.discriminatedUnion("type", [
   stickyNoteSchema,
   rectangleSchema,
@@ -82,6 +92,8 @@ export const boardObjectSchema = z.discriminatedUnion("type", [
   lineSchema,
   connectorSchema,
   frameSchema,
+  triangleSchema,
+  starSchema,
 ]);
 
 export type BoardObjectZod = z.infer<typeof boardObjectSchema>;

@@ -6,6 +6,8 @@ import { textRenderer } from "./text-renderer";
 import { frameRenderer } from "./frame-renderer";
 import { lineRenderer } from "./line-renderer";
 import { connectorRenderer } from "./connector-renderer";
+import { triangleRenderer } from "./triangle-renderer";
+import { starRenderer } from "./star-renderer";
 
 registerRenderer("sticky_note", stickyNoteRenderer);
 registerRenderer("rectangle", rectangleRenderer);
@@ -14,3 +16,5 @@ registerRenderer("text", textRenderer);
 registerRenderer("frame", frameRenderer);
 registerRenderer("line", lineRenderer);
 registerRenderer("connector", connectorRenderer);
+registerRenderer("triangle", triangleRenderer);
+registerRenderer("star", starRenderer);

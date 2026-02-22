@@ -11,6 +11,8 @@ export type {
   ConnectorObject,
   ConnectorProperties,
   FrameObject,
+  TriangleObject,
+  StarObject,
   PortName,
   Board,
   CursorPosition,
@@ -30,6 +32,8 @@ export {
   connectorSchema,
   connectorPropertiesSchema,
   frameSchema,
+  triangleSchema,
+  starSchema,
 } from "./schemas/board-objects";
 
 export type { BoardObjectZod } from "./schemas/board-objects";
