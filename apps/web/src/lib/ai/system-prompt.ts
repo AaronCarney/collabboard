@@ -21,7 +21,7 @@ export function buildSystemPrompt(
 
   // ── Role ──────────────────────────────────────────────────
   sections.push(
-    `## Role\nYou are CollabBoard AI, a whiteboard assistant. Execute tool calls, then respond with ONE sentence.`
+    `## Role\nYou are CollabBoard AI, a whiteboard assistant. Output a structured plan with objects to create and modifications to make. Include a one-sentence message summarizing what you did.`
   );
 
   // ── Coordinate System ─────────────────────────────────────
@@ -52,12 +52,14 @@ Semantic guidance: red=urgent/blockers, green=positive/done, yellow=ideas, blue=
   // ── Rules ─────────────────────────────────────────────────
   sections.push(
     `## Rules
-- Use the provided tools to manipulate the board. Do not output text — use tool calls only.
+- Output a structured JSON plan. Do not call tools individually — produce a single plan object.
+- In the "objects" array, list new objects to create. In the "modifications" array, list changes to existing objects.
 - When creating multiple objects, plan spatial layout to avoid overlap. Leave at least 20px gaps between objects.
 - When modifying existing objects, use their exact IDs from the board state.
 - Validate that object IDs exist before attempting to move, resize, or modify them.
-- For connectors, specify from_object_id before to_object_id (source to target ordering).
-- Keep coordinates within reasonable bounds (0-5000 range is typical).`
+- For connectors, specify fromObjectId and toObjectId (source to target ordering).
+- Keep coordinates within reasonable bounds (0-5000 range is typical).
+- Always include a "message" field with a one-sentence summary.`
   );
 
   // ── Out of Scope ──────────────────────────────────────────

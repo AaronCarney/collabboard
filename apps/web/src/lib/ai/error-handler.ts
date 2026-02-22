@@ -21,6 +21,12 @@ interface ToolCallResult {
 }
 
 export function classifyError(err: unknown, toolCallResults?: ToolCallResult[]): AIErrorCategory {
+  // NoObjectGeneratedError from Vercel AI SDK — the model failed to produce
+  // a valid structured output object after all retries.
+  if (err instanceof Error && err.name === "AI_NoObjectGeneratedError") {
+    return "no_understand";
+  }
+
   if (
     err instanceof Error &&
     "status" in err &&

@@ -1,26 +1,16 @@
-import { generateText, stepCountIs } from "ai";
+import { generateText, Output, NoObjectGeneratedError } from "ai";
 import { openai } from "@ai-sdk/openai";
 import type { BoardObject } from "@collabboard/shared";
 import { matchTemplate, generateTemplate } from "./templates";
 import { buildSystemPrompt } from "./system-prompt";
 import { instrument } from "./observability/instrument";
-import { validateToolCallArgs } from "./validation";
-import { resolveOverlaps } from "./collision";
 import { classifyContextNeed } from "./context-pruning";
 import { getSession, saveSession, resolveAnaphora } from "./session-memory";
-import {
-  getToolDefinitions,
-  executeCreateStickyNote,
-  executeCreateShape,
-  executeCreateFrame,
-  executeMoveObject,
-  executeResizeObject,
-  executeUpdateText,
-  executeChangeColor,
-  executeCreateConnector,
-  executeDeleteObject,
-} from "./tools";
-import type { DeletionMarker } from "./tools";
+import { PlanSchema } from "./plan-schema";
+import type { Plan } from "./plan-schema";
+import { validatePlan } from "./plan-validator";
+import { executePlan } from "./plan-executor";
+import { classifyError, ERROR_MESSAGES } from "./error-handler";
 
 export interface CommandInput {
   command: string;
@@ -40,6 +30,9 @@ export interface CommandResult {
   latencyMs: number;
   isTemplate: boolean;
 }
+
+/** Maximum number of generateObject retries on NoObjectGeneratedError. */
+const MAX_RETRIES = 2;
 
 /**
  * Route a user command to either a template generator or the LLM.
@@ -77,7 +70,7 @@ export async function routeCommand(input: CommandInput): Promise<CommandResult> 
     };
   }
 
-  // Route to LLM
+  // Route to LLM with structured output
   return routeToLlm(input, startTime, center);
 }
 
@@ -105,52 +98,91 @@ async function routeToLlm(
     contextNeed === "none" || contextNeed === "viewport_center_only" ? [] : input.existingObjects;
 
   const systemPrompt = buildSystemPrompt(objectsForContext, viewport, selectedIds);
-  const tools = getToolDefinitions();
 
-  const result = await generateText({
-    model: openai("gpt-4o-mini"),
-    system: systemPrompt,
-    prompt: input.command,
-    tools,
-    stopWhen: stepCountIs(20),
-  });
+  // Retry loop for structured output generation
+  let plan: Plan | null = null;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
 
-  // Process tool calls into BoardObjects and DeletionMarkers
-  const objects: BoardObject[] = [];
-  const deletedIds: string[] = [];
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const result = await generateText({
+        model: openai("gpt-4o-mini"),
+        system: systemPrompt,
+        prompt: input.command,
+        output: Output.object({ schema: PlanSchema }),
+      });
 
-  for (const toolCall of result.toolCalls) {
-    const callResult = executeToolCall(
-      toolCall.toolName,
-      toolCall.input as Record<string, unknown>,
-      input.boardId,
-      input.userId,
-      input.existingObjects
-    );
-    if (callResult) {
-      if (Array.isArray(callResult)) {
-        objects.push(...callResult);
-      } else if (isDeletionMarker(callResult)) {
-        deletedIds.push(callResult.objectId);
-      } else {
-        objects.push(callResult);
+      plan = result.output;
+      totalInputTokens += Number(result.usage.promptTokens ?? 0);
+      totalOutputTokens += Number(result.usage.completionTokens ?? 0);
+      break;
+    } catch (err: unknown) {
+      if (err instanceof NoObjectGeneratedError && attempt < MAX_RETRIES) {
+        // Retry — the model failed to produce valid output
+        continue;
       }
+      // Final attempt failed or non-retryable error — classify and return error
+      const category = classifyError(err);
+      const latencyMs = Date.now() - startTime;
+
+      void instrument({
+        userId: input.userId,
+        boardId: input.boardId,
+        command: input.command,
+        commandType: "llm",
+        prompt: `${systemPrompt}\n\n${input.command}`,
+        completion: `Error: ${category}`,
+        tokensUsed: totalInputTokens + totalOutputTokens,
+        latencyMs,
+        success: false,
+      });
+
+      return {
+        success: false,
+        objects: [],
+        message: ERROR_MESSAGES[category],
+        tokensUsed: totalInputTokens + totalOutputTokens,
+        latencyMs,
+        isTemplate: false,
+      };
     }
   }
 
-  // Resolve collisions among newly created objects and existing board state
-  const resolvedObjects = resolveOverlaps(objects, input.existingObjects);
+  // This should not happen given the loop structure, but satisfies type checker
+  if (!plan) {
+    const latencyMs = Date.now() - startTime;
+    return {
+      success: false,
+      objects: [],
+      message: ERROR_MESSAGES.no_understand,
+      tokensUsed: totalInputTokens + totalOutputTokens,
+      latencyMs,
+      isTemplate: false,
+    };
+  }
+
+  // Validate the plan against existing board state
+  const validation = validatePlan(plan, input.existingObjects);
+  const validatedPlan = validation.corrected;
+
+  // Execute the plan synchronously — no I/O
+  const execResult = executePlan(validatedPlan, input.boardId, input.userId, input.existingObjects);
+
+  // Combine new objects and modified objects for the result
+  const allObjects = [...execResult.objects, ...execResult.modifiedObjects];
 
   // Persist session state for anaphora resolution in subsequent commands
-  const createdIds = objects.map((o) => o.id);
+  const createdIds = execResult.objects.map((o) => o.id);
+  const modifiedIds = execResult.modifiedObjects.map((o) => o.id);
   saveSession(input.userId, input.boardId, {
     lastCreatedIds: createdIds,
-    lastModifiedIds: [],
+    lastModifiedIds: modifiedIds,
     lastCommandText: input.command,
     timestamp: Date.now(),
   });
 
-  const tokensUsed = (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0);
+  const tokensUsed = totalInputTokens + totalOutputTokens;
   const latencyMs = Date.now() - startTime;
 
   // Fire-and-forget — never blocks the response
@@ -160,7 +192,7 @@ async function routeToLlm(
     command: input.command,
     commandType: "llm",
     prompt: `${systemPrompt}\n\n${input.command}`,
-    completion: result.text || `${String(result.toolCalls.length)} tool call(s)`,
+    completion: validatedPlan.message,
     tokensUsed,
     latencyMs,
     success: true,
@@ -168,78 +200,11 @@ async function routeToLlm(
 
   return {
     success: true,
-    objects: resolvedObjects,
-    deletedIds: deletedIds.length > 0 ? deletedIds : undefined,
-    message: `Executed ${String(result.toolCalls.length)} action(s) via AI`,
+    objects: allObjects,
+    deletedIds: execResult.deletedIds.length > 0 ? execResult.deletedIds : undefined,
+    message: validatedPlan.message,
     tokensUsed,
     latencyMs,
     isTemplate: false,
   };
-}
-
-function isDeletionMarker(value: unknown): value is DeletionMarker {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "type" in value &&
-    (value as Record<string, unknown>).type === "deletion"
-  );
-}
-
-function executeToolCall(
-  toolName: string,
-  args: Record<string, unknown>,
-  boardId: string,
-  userId: string,
-  existingObjects: BoardObject[]
-): BoardObject | BoardObject[] | DeletionMarker | null {
-  // Validate and clamp args before executing
-  const validation = validateToolCallArgs(toolName, args, existingObjects);
-  if (!validation.valid) {
-    return null;
-  }
-  if (validation.clamped.length > 0) {
-    // eslint-disable-next-line no-console
-    console.warn(`Tool "${toolName}" had clamped values: ${validation.clamped.join(", ")}`);
-  }
-
-  switch (toolName) {
-    case "createStickyNote":
-      return executeCreateStickyNote(
-        args as Parameters<typeof executeCreateStickyNote>[0],
-        boardId,
-        userId
-      );
-    case "createShape":
-      return executeCreateShape(args as Parameters<typeof executeCreateShape>[0], boardId, userId);
-    case "createFrame":
-      return executeCreateFrame(args as Parameters<typeof executeCreateFrame>[0], boardId, userId);
-    case "moveObject":
-      return executeMoveObject(args as Parameters<typeof executeMoveObject>[0], existingObjects);
-    case "resizeObject":
-      return executeResizeObject(
-        args as Parameters<typeof executeResizeObject>[0],
-        existingObjects
-      );
-    case "updateText":
-      return executeUpdateText(args as Parameters<typeof executeUpdateText>[0], existingObjects);
-    case "changeColor":
-      return executeChangeColor(args as Parameters<typeof executeChangeColor>[0], existingObjects);
-    case "getBoardState":
-      return null;
-    case "createConnector":
-      return executeCreateConnector(
-        args as Parameters<typeof executeCreateConnector>[0],
-        boardId,
-        userId,
-        existingObjects
-      );
-    case "deleteObject":
-      return executeDeleteObject(
-        args as Parameters<typeof executeDeleteObject>[0],
-        existingObjects
-      );
-    default:
-      return null;
-  }
 }
