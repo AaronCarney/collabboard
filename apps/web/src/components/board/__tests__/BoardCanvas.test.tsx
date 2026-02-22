@@ -508,6 +508,67 @@ describe("BoardCanvas", () => {
     });
   });
 
+  // Warning #7: Cursor username truncation
+  describe("cursor username truncation", () => {
+    it("truncates long usernames to 30 characters with ellipsis", async () => {
+      const longName = "A".repeat(50);
+      const cursors = new Map([
+        [
+          "user-2",
+          {
+            userId: "user-2",
+            userName: longName,
+            x: 200,
+            y: 200,
+            color: "#FF0000",
+          },
+        ],
+      ]);
+      const props = defaultProps({ cursors });
+      render(<BoardCanvas {...props} />);
+
+      await act(async () => {
+        await vi.waitFor(() => {
+          // Check that fillText was called with truncated name (30 chars + ellipsis)
+          const fillTextCalls = mockContext.fillText.mock.calls;
+          const hasTruncated = fillTextCalls.some(
+            (call: unknown[]) =>
+              typeof call[0] === "string" &&
+              call[0].length <= 33 && // 30 chars + "..."
+              (call[0]).endsWith("…")
+          );
+          expect(hasTruncated).toBe(true);
+        });
+      });
+    });
+
+    it("does not truncate usernames under 30 characters", async () => {
+      const shortName = "ShortUser";
+      const cursors = new Map([
+        [
+          "user-2",
+          {
+            userId: "user-2",
+            userName: shortName,
+            x: 200,
+            y: 200,
+            color: "#FF0000",
+          },
+        ],
+      ]);
+      const props = defaultProps({ cursors });
+      render(<BoardCanvas {...props} />);
+
+      await act(async () => {
+        await vi.waitFor(() => {
+          const fillTextCalls = mockContext.fillText.mock.calls;
+          const hasExactName = fillTextCalls.some((call: unknown[]) => call[0] === shortName);
+          expect(hasExactName).toBe(true);
+        });
+      });
+    });
+  });
+
   // Phase 4: Resize handles
   describe("resize handles", () => {
     it("calls onObjectResize when dragging a handle", () => {

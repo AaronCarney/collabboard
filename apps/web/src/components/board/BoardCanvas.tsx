@@ -868,16 +868,21 @@ function drawCursor(ctx: CanvasRenderingContext2D, cursor: CursorPosition) {
   ctx.lineWidth = 1;
   ctx.stroke();
 
-  // Name label
+  // Name label (truncate to 30 chars to prevent DoS via long usernames)
+  const MAX_CURSOR_NAME_LENGTH = 30;
+  const displayName =
+    cursor.userName.length > MAX_CURSOR_NAME_LENGTH
+      ? cursor.userName.slice(0, MAX_CURSOR_NAME_LENGTH) + "\u2026"
+      : cursor.userName;
   ctx.font = "11px -apple-system, BlinkMacSystemFont, sans-serif";
-  const textWidth = ctx.measureText(cursor.userName).width;
+  const textWidth = ctx.measureText(displayName).width;
   ctx.fillStyle = cursor.color;
   roundRect(ctx, 10, 14, textWidth + 8, 18, 4);
   ctx.fill();
   ctx.fillStyle = "#fff";
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
-  ctx.fillText(cursor.userName, 14, 17);
+  ctx.fillText(displayName, 14, 17);
 
   ctx.restore();
 }
