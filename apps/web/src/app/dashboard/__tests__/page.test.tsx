@@ -93,6 +93,20 @@ const mockBoards: Board[] = [
   },
 ];
 
+// Polyfill dialog.showModal / dialog.close for happy-dom
+beforeEach(() => {
+  if (!HTMLDialogElement.prototype.showModal.toString().includes("native")) {
+    HTMLDialogElement.prototype.showModal = vi.fn(function showModal(this: HTMLDialogElement) {
+      this.setAttribute("open", "");
+    });
+  }
+  if (!HTMLDialogElement.prototype.close.toString().includes("native")) {
+    HTMLDialogElement.prototype.close = vi.fn(function close(this: HTMLDialogElement) {
+      this.removeAttribute("open");
+    });
+  }
+});
+
 describe("DashboardPage — delete board", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -108,8 +122,6 @@ describe("DashboardPage — delete board", () => {
     mockInsert.mockReturnValue({ select: mockInsertSelect });
     mockInsertSelect.mockReturnValue({ single: mockInsertSingle });
     mockOrder.mockResolvedValue({ data: mockBoards });
-    // Default: confirm returns true
-    vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
   it("renders a delete button on each board card", async () => {
@@ -125,8 +137,7 @@ describe("DashboardPage — delete board", () => {
     expect(deleteButtons).toHaveLength(2);
   });
 
-  it("shows confirmation dialog when delete button is clicked", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+  it("opens native dialog when delete button is clicked", async () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
@@ -138,10 +149,11 @@ describe("DashboardPage — delete board", () => {
     });
     fireEvent.click(deleteButtons[0]);
 
-    expect(confirmSpy).toHaveBeenCalledWith("Delete this board? This cannot be undone.");
+    // Dialog should now be open with confirmation text
+    expect(screen.getByText("Delete this board? This cannot be undone.")).toBeInTheDocument();
   });
 
-  it("calls Supabase delete when confirmation is accepted", async () => {
+  it("calls Supabase delete when dialog Delete button is confirmed", async () => {
     mockDeleteEq.mockResolvedValue({ error: null });
     render(<DashboardPage />);
 
@@ -149,10 +161,15 @@ describe("DashboardPage — delete board", () => {
       expect(screen.getByText("First Board")).toBeInTheDocument();
     });
 
+    // Open dialog
     const deleteButtons = screen.getAllByRole("button", {
       name: /delete board/i,
     });
     fireEvent.click(deleteButtons[0]);
+
+    // Click the "Delete" button inside the dialog
+    const confirmBtn = screen.getByRole("button", { name: "Delete" });
+    fireEvent.click(confirmBtn);
 
     await waitFor(() => {
       expect(mockDeleteFn).toHaveBeenCalled();
@@ -175,8 +192,11 @@ describe("DashboardPage — delete board", () => {
     const deleteButtons = screen.getAllByRole("button", {
       name: /delete board/i,
     });
-
     fireEvent.click(deleteButtons[0]);
+
+    // Confirm via dialog
+    const confirmBtn = screen.getByRole("button", { name: "Delete" });
+    fireEvent.click(confirmBtn);
 
     await waitFor(() => {
       expect(showToast).toHaveBeenCalledWith("Board deleted", "info");
@@ -188,18 +208,22 @@ describe("DashboardPage — delete board", () => {
     expect(screen.getByText("Second Board")).toBeInTheDocument();
   });
 
-  it("does NOT delete when confirmation is cancelled", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
+  it("does NOT delete when Cancel is clicked in dialog", async () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
       expect(screen.getByText("First Board")).toBeInTheDocument();
     });
 
+    // Open dialog
     const deleteButtons = screen.getAllByRole("button", {
       name: /delete board/i,
     });
     fireEvent.click(deleteButtons[0]);
+
+    // Click Cancel
+    const cancelBtn = screen.getByRole("button", { name: "Cancel" });
+    fireEvent.click(cancelBtn);
 
     expect(mockDeleteFn).not.toHaveBeenCalled();
     expect(screen.getByText("First Board")).toBeInTheDocument();
@@ -217,6 +241,10 @@ describe("DashboardPage — delete board", () => {
       name: /delete board/i,
     });
     fireEvent.click(deleteButtons[0]);
+
+    // Confirm via dialog
+    const confirmBtn = screen.getByRole("button", { name: "Delete" });
+    fireEvent.click(confirmBtn);
 
     await waitFor(() => {
       expect(showToast).toHaveBeenCalledWith("Failed to delete board", "error");
@@ -240,6 +268,10 @@ describe("DashboardPage — delete board", () => {
       name: /delete board/i,
     });
     fireEvent.click(deleteButtons[0]);
+
+    // Confirm via dialog
+    const confirmBtn = screen.getByRole("button", { name: "Delete" });
+    fireEvent.click(confirmBtn);
 
     await waitFor(() => {
       expect(mockDeleteFn).toHaveBeenCalled();

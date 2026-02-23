@@ -256,8 +256,17 @@ describe("Dashboard — board limit edge cases", () => {
     mockInsert.mockReturnValue({ select: mockInsertSelect });
     mockInsertSelect.mockReturnValue({ single: mockInsertSingle });
 
-    // Auto-confirm delete dialogs
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    // Polyfill dialog.showModal / dialog.close for happy-dom
+    if (!HTMLDialogElement.prototype.showModal.toString().includes("native")) {
+      HTMLDialogElement.prototype.showModal = vi.fn(function showModal(this: HTMLDialogElement) {
+        this.setAttribute("open", "");
+      });
+    }
+    if (!HTMLDialogElement.prototype.close.toString().includes("native")) {
+      HTMLDialogElement.prototype.close = vi.fn(function close(this: HTMLDialogElement) {
+        this.removeAttribute("open");
+      });
+    }
   });
 
   it("re-enables the create button after deleting a board drops count from 5 to 4", async () => {
@@ -280,11 +289,15 @@ describe("Dashboard — board limit edge cases", () => {
       data: initialBoards.filter((b) => b.id !== "board-1"),
     });
 
-    // Delete the first board — confirm spy auto-accepts
+    // Open delete dialog for the first board
     const deleteButtons = screen.getAllByRole("button", {
       name: /delete board/i,
     });
     fireEvent.click(deleteButtons[0]);
+
+    // Confirm deletion via dialog
+    const confirmBtn = screen.getByRole("button", { name: "Delete" });
+    fireEvent.click(confirmBtn);
 
     // After deletion, board count drops to 4 — button must re-enable
     await waitFor(() => {

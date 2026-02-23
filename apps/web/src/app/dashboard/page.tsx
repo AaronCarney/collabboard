@@ -14,6 +14,8 @@ export default function DashboardPage(): React.JSX.Element {
   const router = useRouter();
   const [boards, setBoards] = useState<Board[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
@@ -58,19 +60,29 @@ export default function DashboardPage(): React.JSX.Element {
     }
   }, [user, router, supabase, boards.length]);
 
-  const deleteBoard = useCallback(
-    async (boardId: string) => {
-      if (!window.confirm("Delete this board? This cannot be undone.")) return;
-      const { error } = await supabase.from("boards").delete().eq("id", boardId);
-      if (error) {
-        showToast("Failed to delete board", "error");
-        return;
-      }
-      setBoards((prev) => prev.filter((b) => b.id !== boardId));
-      showToast("Board deleted", "info");
-    },
-    [supabase]
-  );
+  const confirmDelete = useCallback((boardId: string): void => {
+    setPendingDeleteId(boardId);
+    dialogRef.current?.showModal();
+  }, []);
+
+  const cancelDelete = useCallback((): void => {
+    dialogRef.current?.close();
+    setPendingDeleteId(null);
+  }, []);
+
+  const executeDelete = useCallback(async (): Promise<void> => {
+    if (!pendingDeleteId) return;
+    dialogRef.current?.close();
+    const boardId = pendingDeleteId;
+    setPendingDeleteId(null);
+    const { error } = await supabase.from("boards").delete().eq("id", boardId);
+    if (error) {
+      showToast("Failed to delete board", "error");
+      return;
+    }
+    setBoards((prev) => prev.filter((b) => b.id !== boardId));
+    showToast("Board deleted", "info");
+  }, [supabase, pendingDeleteId]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -127,7 +139,7 @@ export default function DashboardPage(): React.JSX.Element {
                   aria-label="Delete board"
                   onClick={(e) => {
                     e.stopPropagation();
-                    void deleteBoard(board.id);
+                    confirmDelete(board.id);
                   }}
                   className="absolute top-2 right-2 text-gray-400 hover:text-red-500 text-sm leading-none"
                 >
@@ -142,6 +154,32 @@ export default function DashboardPage(): React.JSX.Element {
           </div>
         )}
       </main>
+      <dialog
+        ref={dialogRef}
+        className="rounded-lg p-6 shadow-xl backdrop:bg-black/50"
+        aria-labelledby="delete-dialog-title"
+      >
+        <h3 id="delete-dialog-title" className="text-lg font-semibold mb-2">
+          Delete board
+        </h3>
+        <p className="text-gray-600 mb-4">Delete this board? This cannot be undone.</p>
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={cancelDelete}
+            className="px-4 py-2 rounded border hover:bg-gray-50 transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              void executeDelete();
+            }}
+            className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 transition"
+          >
+            Delete
+          </button>
+        </div>
+      </dialog>
     </div>
   );
 }
