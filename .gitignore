@@ -52,3 +52,6 @@ test-results/
 npm-debug.log*
 pnpm-debug.log*
 .vercel
+
+# personl
+/docs/plans/*

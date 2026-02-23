@@ -42,7 +42,7 @@ Run in Claude Code: cd /home/context/projects/collabboard && cd apps/web && pnpm
 
 Set `ANTHROPIC_API_KEY` in `.env.local` and Vercel (instead of `OPENAI_API_KEY`).
 
-**Decision: GPT-4o-mini / Claude Haiku 4.5 / Gemini 2.5 Flash** → write your choice here: ****\_\_\_****
+**Decision: GPT-4o-mini / Claude Haiku 4.5 / Gemini 2.5 Flash** → write your choice here: \***\*\_\_\_\*\***
 
 ---
 

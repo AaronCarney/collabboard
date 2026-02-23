@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/database";
 
-type SupabaseClientInstance = ReturnType<typeof createClient>;
+type SupabaseClientInstance = ReturnType<typeof createClient<Database>>;
 
 function getRequiredEnv(name: string): string {
   const value = process.env[name];
@@ -17,7 +18,7 @@ const supabaseAnonKey = getRequiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 export function createClerkSupabaseClient(
   getToken: () => Promise<string | null>
 ): SupabaseClientInstance {
-  return createClient(supabaseUrl, supabaseAnonKey, {
+  return createClient<Database>(supabaseUrl, supabaseAnonKey, {
     accessToken: async () => {
       const token = await getToken();
       return token ?? null;
@@ -29,7 +30,7 @@ export function createClerkSupabaseClient(
 // Supabase Realtime WebSocket cannot authenticate Clerk RS256 JWTs,
 // but broadcast and presence are ephemeral pub/sub that only need the anon key.
 export function createRealtimeClient(): SupabaseClientInstance {
-  return createClient(supabaseUrl, supabaseAnonKey, {
+  return createClient<Database>(supabaseUrl, supabaseAnonKey, {
     auth: { persistSession: false },
   });
 }

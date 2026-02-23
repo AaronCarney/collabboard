@@ -95,13 +95,17 @@ export default function BoardPage(): React.JSX.Element | null {
     if (!user) return;
     const loadBoard = async (): Promise<void> => {
       try {
-        const result = await supabase.from("boards").select("name").eq("id", boardId).single();
-        if (result.error ?? !result.data) {
+        const { data, error } = await supabase
+          .from("boards")
+          .select("name")
+          .eq("id", boardId)
+          .single();
+        if (error) {
           showToast("Board not found", "error");
           router.push("/dashboard");
           return;
         }
-        setBoardName((result.data as { name: string }).name);
+        setBoardName(data.name);
       } catch {
         showToast("Failed to load board", "error");
         router.push("/dashboard");
@@ -142,7 +146,7 @@ export default function BoardPage(): React.JSX.Element | null {
         .from("boards")
         .update({ name: sanitized })
         .eq("id", boardId)
-        .then(({ error }: { error: unknown }) => {
+        .then(({ error }) => {
           if (error) {
             showToast("Failed to save board name", "error");
           }

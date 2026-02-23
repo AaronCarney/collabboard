@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/database";
 import type { AccessLevel, BoardShare } from "@collabboard/shared";
 import { boardShareSchema } from "@collabboard/shared";
 
@@ -9,14 +10,14 @@ export interface ShareService {
   validateToken(token: string): Promise<BoardShare | null>;
 }
 
-export function createShareService(supabase: SupabaseClient): ShareService {
+export function createShareService(supabase: SupabaseClient<Database>): ShareService {
   return {
     async createShare(
       boardId: string,
       accessLevel: AccessLevel,
       userId: string
     ): Promise<BoardShare> {
-      const { data, error } = (await supabase
+      const { data, error } = await supabase
         .from("board_shares")
         .insert({
           board_id: boardId,
@@ -24,7 +25,7 @@ export function createShareService(supabase: SupabaseClient): ShareService {
           created_by: userId,
         })
         .select()
-        .single()) as { data: unknown; error: { message: string } | null };
+        .single();
 
       if (error) throw new Error(`Failed to create share: ${error.message}`);
 
@@ -53,7 +54,7 @@ export function createShareService(supabase: SupabaseClient): ShareService {
       if (error) throw new Error(`Failed to list shares: ${error.message}`);
 
       const shares: BoardShare[] = [];
-      for (const row of (data as unknown[] | null) ?? []) {
+      for (const row of data) {
         const parsed = boardShareSchema.safeParse(row);
         if (parsed.success) {
           shares.push(parsed.data);
@@ -63,13 +64,13 @@ export function createShareService(supabase: SupabaseClient): ShareService {
     },
 
     async validateToken(token: string): Promise<BoardShare | null> {
-      const { data, error } = (await supabase
+      const { data, error } = await supabase
         .from("board_shares")
         .select()
         .eq("token", token)
-        .single()) as { data: unknown; error: { message: string } | null };
+        .single();
 
-      if (error || !data) return null;
+      if (error) return null;
 
       const parsed = boardShareSchema.safeParse(data);
       if (!parsed.success) return null;

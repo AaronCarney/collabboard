@@ -84,7 +84,7 @@ graph LR
 
 ```bash
 # Clone and install
-git clone <repo-url>
+git clone https://github.com/AaronCarney/collabboard
 cd collabboard
 pnpm install
 

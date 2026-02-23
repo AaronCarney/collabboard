@@ -103,13 +103,14 @@ vi.mock("uuid", () => ({
 // Import after mocks are set up
 import { useBoardStore } from "../board-store";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/database";
 
 /* eslint-disable @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 const mockSupabase = {
   from: (table: any) => mockFrom(table),
   channel: (name: any, opts?: any) => mockChannel(name, opts),
   removeChannel: (ch: any) => mockRemoveChannel(ch),
-} as unknown as SupabaseClient;
+} as unknown as SupabaseClient<Database>;
 
 const mockRealtimeSupabase = {
   from: vi.fn(() => {
@@ -117,7 +118,7 @@ const mockRealtimeSupabase = {
   }),
   channel: (name: any, opts?: any) => mockRealtimeChannel(name, opts),
   removeChannel: (ch: any) => mockRealtimeRemoveChannel(ch),
-} as unknown as SupabaseClient;
+} as unknown as SupabaseClient<Database>;
 /* eslint-enable @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 
 beforeEach(() => {

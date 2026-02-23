@@ -5,6 +5,7 @@ import { z } from "@collabboard/shared";
 import { boardObjectSchema } from "@collabboard/shared";
 import type { BoardObject } from "@collabboard/shared";
 import { supabaseAdmin } from "@/lib/supabase-server";
+import type { TablesInsert } from "@/types/database";
 import { routeCommand } from "@/lib/ai/command-router";
 import { enqueueForUser } from "@/lib/ai/ai-queue";
 import { classifyError, ERROR_MESSAGES } from "@/lib/ai/error-handler";
@@ -140,7 +141,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (result.objects.length > 0) {
       const { error: upsertError } = await supabaseAdmin
         .from("board_objects")
-        .upsert(result.objects);
+        .upsert(result.objects as unknown as TablesInsert<"board_objects">[]);
 
       if (upsertError) {
         console.warn("[AI] Failed to persist objects:", upsertError.message); // eslint-disable-line no-console

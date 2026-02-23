@@ -8,6 +8,8 @@ import { OBJECT_DEFAULTS, USER_COLORS } from "@/types/board";
 import { boardObjectSchema } from "@collabboard/shared";
 import { v4 as uuidv4 } from "uuid";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/database";
+import type { TablesInsert, TablesUpdate } from "@/types/database";
 import { hashCode, shouldAcceptUpdate } from "@/lib/board-logic";
 import { createCommandHistory } from "@/lib/board-commands";
 import type { CommandHistory, MutationPipeline } from "@/lib/board-commands";
@@ -212,8 +214,8 @@ export function useBoardStore(
   boardId: string,
   userId: string,
   userName: string,
-  supabase: SupabaseClient,
-  realtimeSupabase: SupabaseClient
+  supabase: SupabaseClient<Database>,
+  realtimeSupabase: SupabaseClient<Database>
 ): UseBoardStoreReturn {
   const [objectsMap, setObjectsMapRaw] = useState<Map<string, BoardObject>>(new Map());
   const objectsMapRef = useRef<Map<string, BoardObject>>(new Map());
@@ -278,7 +280,7 @@ export function useBoardStore(
       for (const obj of updatedObjects) {
         void supabase
           .from("board_objects")
-          .upsert(obj)
+          .upsert(obj as unknown as TablesInsert<"board_objects">)
           .then(({ error }) => {
             if (error) {
               console.warn("[Supabase] upsert error:", error.message); // eslint-disable-line no-console
@@ -540,7 +542,7 @@ export function useBoardStore(
           });
       }
 
-      await supabase.from("board_objects").insert(obj);
+      await supabase.from("board_objects").insert(obj as unknown as TablesInsert<"board_objects">);
 
       return obj;
     },
@@ -576,7 +578,7 @@ export function useBoardStore(
             ...changes,
             version: updated.version,
             updated_at: updated.updated_at,
-          })
+          } as unknown as TablesUpdate<"board_objects">)
           .eq("id", id)
           .then(({ error }) => {
             if (error) {
