@@ -1,3 +1,8 @@
+// CSRF posture: Clerk middleware validates session JWTs on every request, which
+// provides implicit CSRF protection — tokens are stored in httpOnly cookies with
+// SameSite=Lax (Clerk default). Supabase calls use per-request JWTs from
+// getToken(), not cookies, so they are inherently CSRF-safe. No additional CSRF
+// token mechanism is required for this auth architecture.
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
 const isPublicRoute = createRouteMatcher([
