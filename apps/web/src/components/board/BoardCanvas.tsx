@@ -526,7 +526,6 @@ export function BoardCanvas({
       resizeHandle,
       resizeObjStart,
       resizeObjId,
-      objects,
     ]
   );
 
@@ -595,7 +594,7 @@ export function BoardCanvas({
         setDrawStartWorld(null);
         drawToolRef.current = null;
         connectorSourceRef.current = null;
-        // Fall through to onCanvasClick if onDrawCreate is not provided
+        return;
       }
 
       if (!isDragging && !isPanning && !isSelecting) {
@@ -830,8 +829,12 @@ function drawSelectionRect(ctx: CanvasRenderingContext2D, rect: SelectionRect) {
   ctx.strokeStyle = "#3b82f6";
   ctx.lineWidth = 1;
   ctx.setLineDash([4, 4]);
-  ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
-  ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+  const x = Math.min(rect.x, rect.x + rect.width);
+  const y = Math.min(rect.y, rect.y + rect.height);
+  const w = Math.abs(rect.width);
+  const h = Math.abs(rect.height);
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeRect(x, y, w, h);
   ctx.setLineDash([]);
   ctx.restore();
 }

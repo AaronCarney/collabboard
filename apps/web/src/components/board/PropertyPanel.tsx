@@ -45,6 +45,10 @@ export function PropertyPanel({
 
   const [hexInput, setHexInput] = useState(currentColor ?? "");
 
+  useEffect(() => {
+    setHexInput(currentColor ?? "");
+  }, [currentColor]);
+
   const showFontControls = selectedObjects.some(hasTextContent);
 
   const currentOpacity = selectedObjects.length === 1 ? (selectedObjects[0].opacity ?? 1) : null;

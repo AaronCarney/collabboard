@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { act } from "react";
 import { PropertyPanel } from "../PropertyPanel";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -401,6 +402,42 @@ describe("PropertyPanel", () => {
       render(<PropertyPanel selectedObjects={[makeObject()]} onUpdateObjects={vi.fn()} />);
       expect(screen.getByText("Fill")).toBeInTheDocument();
       expect(screen.queryByText("Color")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("hex input syncs on selection change (Bug #18)", () => {
+    it("shows current color in hex input on initial render", () => {
+      render(
+        <PropertyPanel
+          selectedObjects={[makeObject({ color: "#FF0000" })]}
+          onUpdateObjects={vi.fn()}
+        />
+      );
+      const hexInput = screen.getByPlaceholderText(/#[0-9a-fA-F]/i);
+      expect(hexInput).toHaveValue("#FF0000");
+    });
+
+    it("updates hex input when selected object color changes via rerender", () => {
+      const onUpdate = vi.fn();
+      const { rerender } = render(
+        <PropertyPanel
+          selectedObjects={[makeObject({ color: "#FF0000" })]}
+          onUpdateObjects={onUpdate}
+        />
+      );
+      const hexInput = screen.getByPlaceholderText(/#[0-9a-fA-F]/i);
+      expect(hexInput).toHaveValue("#FF0000");
+
+      act(() => {
+        rerender(
+          <PropertyPanel
+            selectedObjects={[makeObject({ color: "#00FF00" })]}
+            onUpdateObjects={onUpdate}
+          />
+        );
+      });
+
+      expect(hexInput).toHaveValue("#00FF00");
     });
   });
 });
