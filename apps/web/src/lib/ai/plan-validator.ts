@@ -37,10 +37,10 @@ function validatePlanObject(
   corrected.y = clamp(corrected.y, MIN_POSITION, MAX_POSITION);
 
   // Clamp dimensions if provided
-  if (corrected.width !== undefined) {
+  if (corrected.width != null) {
     corrected.width = clamp(corrected.width, MIN_DIMENSION, MAX_DIMENSION);
   }
-  if (corrected.height !== undefined) {
+  if (corrected.height != null) {
     corrected.height = clamp(corrected.height, MIN_DIMENSION, MAX_DIMENSION);
   }
 
@@ -80,20 +80,20 @@ function validateModification(
 
   // Clamp positions for move
   if (corrected.action === "move") {
-    if (corrected.x !== undefined) {
+    if (corrected.x != null) {
       corrected.x = clamp(corrected.x, MIN_POSITION, MAX_POSITION);
     }
-    if (corrected.y !== undefined) {
+    if (corrected.y != null) {
       corrected.y = clamp(corrected.y, MIN_POSITION, MAX_POSITION);
     }
   }
 
   // Clamp dimensions for resize
   if (corrected.action === "resize") {
-    if (corrected.width !== undefined) {
+    if (corrected.width != null) {
       corrected.width = clamp(corrected.width, MIN_DIMENSION, MAX_DIMENSION);
     }
-    if (corrected.height !== undefined) {
+    if (corrected.height != null) {
       corrected.height = clamp(corrected.height, MIN_DIMENSION, MAX_DIMENSION);
     }
   }
@@ -126,7 +126,7 @@ export function validatePlan(plan: Plan, existingObjects: BoardObject[]): PlanVa
 
   const corrected: Plan = {
     objects: correctedObjects,
-    modifications: correctedModifications.length > 0 ? correctedModifications : undefined,
+    modifications: correctedModifications.length > 0 ? correctedModifications : null,
     message: plan.message,
   };
 

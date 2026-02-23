@@ -8,12 +8,12 @@ export const ModificationSchema = z.object({
   action: z
     .enum(["move", "resize", "recolor", "update_text", "delete"])
     .describe("Type of modification"),
-  x: z.number().optional().describe("New X position (for move)"),
-  y: z.number().optional().describe("New Y position (for move)"),
-  width: z.number().optional().describe("New width (for resize)"),
-  height: z.number().optional().describe("New height (for resize)"),
-  color: z.string().optional().describe("New color (for recolor)"),
-  text: z.string().optional().describe("New text content (for update_text)"),
+  x: z.number().nullable().describe("New X position (for move)"),
+  y: z.number().nullable().describe("New Y position (for move)"),
+  width: z.number().nullable().describe("New width (for resize)"),
+  height: z.number().nullable().describe("New height (for resize)"),
+  color: z.string().nullable().describe("New color (for recolor)"),
+  text: z.string().nullable().describe("New text content (for update_text)"),
 });
 
 /**
@@ -25,17 +25,17 @@ export const PlanObjectSchema = z.object({
     .describe("Type of object to create"),
   x: z.number().describe("X position in world coordinates"),
   y: z.number().describe("Y position in world coordinates"),
-  width: z.number().optional().describe("Width in pixels"),
-  height: z.number().optional().describe("Height in pixels"),
-  content: z.string().optional().describe("Text content"),
-  color: z.string().optional().describe("Color (named or hex)"),
-  parentFrameId: z.string().uuid().nullable().optional().describe("Parent frame ID"),
+  width: z.number().nullable().describe("Width in pixels"),
+  height: z.number().nullable().describe("Height in pixels"),
+  content: z.string().nullable().describe("Text content"),
+  color: z.string().nullable().describe("Color (named or hex)"),
+  parentFrameId: z.string().uuid().nullable().describe("Parent frame ID"),
   // Connector-specific fields
-  fromObjectId: z.string().uuid().optional().describe("Source object ID (connectors only)"),
-  toObjectId: z.string().uuid().optional().describe("Target object ID (connectors only)"),
+  fromObjectId: z.string().uuid().nullable().describe("Source object ID (connectors only)"),
+  toObjectId: z.string().uuid().nullable().describe("Target object ID (connectors only)"),
   connectorStyle: z
     .enum(["arrow", "line", "dashed"])
-    .optional()
+    .nullable()
     .describe("Connector style (connectors only)"),
 });
 
@@ -48,7 +48,7 @@ export const PlanSchema = z.object({
   objects: z.array(PlanObjectSchema).describe("New objects to create on the board"),
   modifications: z
     .array(ModificationSchema)
-    .optional()
+    .nullable()
     .describe("Modifications to existing objects"),
   message: z.string().describe("One-sentence summary of what was done"),
 });

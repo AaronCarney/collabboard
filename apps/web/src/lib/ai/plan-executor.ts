@@ -58,7 +58,7 @@ function planObjectToBoardObject(obj: PlanObject, boardId: string, userId: strin
     height: obj.height ?? defaultHeight(objType),
     rotation: 0,
     content: obj.content ?? "",
-    color: resolveColor(obj.color, objType),
+    color: resolveColor(obj.color ?? undefined, objType),
     version: 1,
     created_by: userId,
     created_at: ts,
@@ -165,28 +165,28 @@ function applyModification(
 
   switch (mod.action) {
     case "move":
-      if (mod.x !== undefined) {
+      if (mod.x != null) {
         updated.x = mod.x;
       }
-      if (mod.y !== undefined) {
+      if (mod.y != null) {
         updated.y = mod.y;
       }
       break;
     case "resize":
-      if (mod.width !== undefined) {
+      if (mod.width != null) {
         updated.width = mod.width;
       }
-      if (mod.height !== undefined) {
+      if (mod.height != null) {
         updated.height = mod.height;
       }
       break;
     case "recolor":
-      if (mod.color !== undefined) {
+      if (mod.color != null) {
         updated.color = resolveColor(mod.color, target.type);
       }
       break;
     case "update_text":
-      if (mod.text !== undefined) {
+      if (mod.text != null) {
         updated.content = mod.text;
       }
       break;
