@@ -123,6 +123,8 @@ async function routeToLlm(
         continue;
       }
       // Final attempt failed or non-retryable error — classify and return error
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.warn("[AI] LLM generation failed:", errMsg); // eslint-disable-line no-console
       const category = classifyError(err);
       const latencyMs = Date.now() - startTime;
 

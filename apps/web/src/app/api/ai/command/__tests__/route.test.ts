@@ -46,6 +46,7 @@ function makeRequest(body: Record<string, unknown>): NextRequest {
 
 function defaultRouteResult(): Awaited<ReturnType<typeof RouteCommandFn>> {
   return {
+    success: true,
     objects: [],
     message: "Done",
     tokensUsed: 10,
@@ -111,6 +112,8 @@ describe("POST /api/ai/command", () => {
     mockEnqueueForUser.mockImplementation((_userId: string, fn: () => Promise<unknown>) => fn());
     // Reset rate limiter between tests
     _resetRateLimiter();
+    // Ensure OPENAI_API_KEY is set for all tests (individual tests may override)
+    process.env.OPENAI_API_KEY = "sk-test-key";
   });
 
   // ---- Auth ----
@@ -260,6 +263,53 @@ describe("POST /api/ai/command", () => {
     await POST(makeRequest({ boardId: BOARD_ID, command: "test" }));
 
     expect(mockRemoveChannel).toHaveBeenCalled();
+  });
+
+  // ---- LLM failure propagation ----
+
+  it("returns 500 when routeCommand returns success: false", async () => {
+    mockAuth.mockResolvedValue({ userId: OWNER_ID });
+    setupBoardQuery({ id: BOARD_ID, created_by: OWNER_ID });
+
+    mockRouteCommand.mockResolvedValue({
+      success: false,
+      objects: [],
+      message: "I didn't understand that.",
+      tokensUsed: 0,
+      latencyMs: 50,
+      isTemplate: false,
+    });
+
+    const { POST } = await import("../route");
+    const res = await POST(makeRequest({ boardId: BOARD_ID, command: "gibberish" }));
+    const json = await res.json();
+
+    expect(res.status).toBe(500);
+    expect(json.success).toBe(false);
+    expect(json.code).toBe("LLM_ERROR");
+    expect(json.error).toBe("I didn't understand that.");
+  });
+
+  // ---- OPENAI_API_KEY check ----
+
+  it("returns 500 when OPENAI_API_KEY is not set", async () => {
+    mockAuth.mockResolvedValue({ userId: OWNER_ID });
+    setupBoardQuery({ id: BOARD_ID, created_by: OWNER_ID });
+
+    const originalKey = process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+
+    try {
+      const { POST } = await import("../route");
+      const res = await POST(makeRequest({ boardId: BOARD_ID, command: "test" }));
+      const json = await res.json();
+
+      expect(res.status).toBe(500);
+      expect(json.success).toBe(false);
+      expect(json.code).toBe("SERVICE_UNAVAILABLE");
+    } finally {
+      process.env.OPENAI_API_KEY = originalKey;
+    }
   });
 
   // ---- Error handling ----

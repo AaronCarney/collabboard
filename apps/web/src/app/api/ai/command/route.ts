@@ -125,6 +125,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     validObjects.some((o) => o.id === id)
   );
 
+  // Fail fast if OpenAI API key is not configured
+  if (!process.env.OPENAI_API_KEY) {
+    console.warn("[AI] OPENAI_API_KEY is not set"); // eslint-disable-line no-console
+    return NextResponse.json(
+      { success: false, error: "AI service is not configured", code: "SERVICE_UNAVAILABLE" },
+      { status: 500 }
+    );
+  }
+
   try {
     const result = await enqueueForUser(userId, () =>
       routeCommand({
@@ -136,6 +145,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         selectedObjectIds: safeSelectedIds,
       })
     );
+
+    // If the LLM failed internally, propagate the error to the client
+    if (!result.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: result.message,
+          code: "LLM_ERROR",
+          tokensUsed: result.tokensUsed,
+          latencyMs: result.latencyMs,
+        },
+        { status: 500 }
+      );
+    }
 
     // Persist new/modified objects
     if (result.objects.length > 0) {
