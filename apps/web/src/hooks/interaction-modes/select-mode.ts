@@ -1,10 +1,10 @@
-import type { InteractionMode, InteractionContext, CanvasMouseEvent } from "../interaction-types";
+import type { InteractionMode, InteractionContext, CanvasPointerEvent } from "../interaction-types";
 
 /** Select mode: click to select objects, drag to move them. */
 export const selectMode: InteractionMode = {
   cursor: "default",
 
-  onMouseDown(ctx: InteractionContext, e: CanvasMouseEvent): void {
+  onPointerDown(ctx: InteractionContext, e: CanvasPointerEvent): void {
     // Hit test all objects in reverse order (topmost first)
     let hitObj = null;
     for (const [, obj] of ctx.objects) {
@@ -36,11 +36,11 @@ export const selectMode: InteractionMode = {
     }
   },
 
-  onMouseMove(_ctx: InteractionContext, _e: CanvasMouseEvent): void {
+  onPointerMove(_ctx: InteractionContext, _e: CanvasPointerEvent): void {
     // Drag logic is handled at a higher level (BoardCanvas)
   },
 
-  onMouseUp(_ctx: InteractionContext, _e: CanvasMouseEvent): void {
+  onPointerUp(_ctx: InteractionContext, _e: CanvasPointerEvent): void {
     // Release logic is handled at a higher level
   },
 };

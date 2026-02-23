@@ -1,5 +1,5 @@
 import type { BoardObject, PortName, ConnectorObject } from "@collabboard/shared";
-import type { InteractionMode, InteractionContext, CanvasMouseEvent } from "../interaction-types";
+import type { InteractionMode, InteractionContext, CanvasPointerEvent } from "../interaction-types";
 
 export interface ConnectorDrawState {
   sourceId: string | null;
@@ -67,7 +67,7 @@ export function createDrawConnectorMode(): DrawConnectorMode {
       cursorY = undefined;
     },
 
-    onMouseDown(ctx: InteractionContext, e: CanvasMouseEvent): void {
+    onPointerDown(ctx: InteractionContext, e: CanvasPointerEvent): void {
       const hit = hitTestObjects(ctx, e.worldX, e.worldY);
       if (hit) {
         sourceId = hit.id;
@@ -82,7 +82,7 @@ export function createDrawConnectorMode(): DrawConnectorMode {
       }
     },
 
-    onMouseMove(ctx: InteractionContext, e: CanvasMouseEvent): void {
+    onPointerMove(ctx: InteractionContext, e: CanvasPointerEvent): void {
       // ctx is required by the interface but not used here
       void ctx;
       if (sourceId !== null) {
@@ -91,7 +91,7 @@ export function createDrawConnectorMode(): DrawConnectorMode {
       }
     },
 
-    onMouseUp(ctx: InteractionContext, e: CanvasMouseEvent): void {
+    onPointerUp(ctx: InteractionContext, e: CanvasPointerEvent): void {
       if (sourceId === null || sourcePort === null) {
         return;
       }

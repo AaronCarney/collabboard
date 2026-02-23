@@ -328,9 +328,9 @@ export function BoardCanvas({
     };
   }, []);
 
-  // Mouse handlers
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+  // Pointer handlers (unified mouse + touch + pen)
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
       const rect = canvasRef.current?.getBoundingClientRect();
       if (!rect) return;
       const sx = e.clientX - rect.left;
@@ -436,8 +436,8 @@ export function BoardCanvas({
     ]
   );
 
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
       const rect = canvasRef.current?.getBoundingClientRect();
       if (!rect) return;
       const sx = e.clientX - rect.left;
@@ -528,8 +528,8 @@ export function BoardCanvas({
     ]
   );
 
-  const handleMouseUp = useCallback(
-    (e: React.MouseEvent) => {
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent) => {
       if (isResizing && resizeObjStart && resizeHandle && resizeObjId) {
         const rect = canvasRef.current?.getBoundingClientRect();
         if (rect) {
@@ -698,10 +698,11 @@ export function BoardCanvas({
       <canvas
         ref={canvasRef}
         className={`w-full h-full ${cursorClass}`}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={() => {
+        style={{ touchAction: "none" }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={() => {
           setIsDragging(false);
           setIsPanning(false);
           setIsSelecting(false);

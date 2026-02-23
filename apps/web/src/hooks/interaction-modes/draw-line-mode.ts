@@ -1,4 +1,4 @@
-import type { InteractionMode, InteractionContext, CanvasMouseEvent } from "../interaction-types";
+import type { InteractionMode, InteractionContext, CanvasPointerEvent } from "../interaction-types";
 
 /**
  * Interaction mode for drawing lines.
@@ -8,15 +8,15 @@ import type { InteractionMode, InteractionContext, CanvasMouseEvent } from "../i
 export const drawLineMode: InteractionMode = {
   cursor: "crosshair",
 
-  onMouseDown(_ctx: InteractionContext, _e: CanvasMouseEvent): void {
+  onPointerDown(_ctx: InteractionContext, _e: CanvasPointerEvent): void {
     // Line creation handled by BoardCanvas via onCanvasClick
   },
 
-  onMouseMove(_ctx: InteractionContext, _e: CanvasMouseEvent): void {
+  onPointerMove(_ctx: InteractionContext, _e: CanvasPointerEvent): void {
     // Future: preview line while dragging
   },
 
-  onMouseUp(_ctx: InteractionContext, _e: CanvasMouseEvent): void {
+  onPointerUp(_ctx: InteractionContext, _e: CanvasPointerEvent): void {
     // Line finalization handled by BoardCanvas
   },
 };

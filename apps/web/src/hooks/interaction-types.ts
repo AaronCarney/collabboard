@@ -1,7 +1,7 @@
 import type { BoardObject } from "@collabboard/shared";
 import type { ShapeRenderer } from "@/components/board/renderers/types";
 
-export interface CanvasMouseEvent {
+export interface CanvasPointerEvent {
   /** World-space X coordinate (after camera transform). */
   worldX: number;
   /** World-space Y coordinate (after camera transform). */
@@ -33,8 +33,8 @@ export interface InteractionContext {
 
 /** Strategy pattern: each tool mode implements this interface. */
 export interface InteractionMode {
-  onMouseDown(ctx: InteractionContext, e: CanvasMouseEvent): void;
-  onMouseMove(ctx: InteractionContext, e: CanvasMouseEvent): void;
-  onMouseUp(ctx: InteractionContext, e: CanvasMouseEvent): void;
+  onPointerDown(ctx: InteractionContext, e: CanvasPointerEvent): void;
+  onPointerMove(ctx: InteractionContext, e: CanvasPointerEvent): void;
+  onPointerUp(ctx: InteractionContext, e: CanvasPointerEvent): void;
   cursor: string;
 }

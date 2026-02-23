@@ -86,8 +86,12 @@ function defaultProps(overrides: Partial<React.ComponentProps<typeof BoardCanvas
   };
 }
 
-function fireMouseEvent(el: HTMLElement, type: string, opts: Partial<MouseEventInit> = {}) {
-  const event = new MouseEvent(type, {
+function firePointerEvent(
+  el: HTMLElement,
+  type: string,
+  opts: Partial<PointerEventInit> = {}
+): void {
+  const event = new PointerEvent(type, {
     bubbles: true,
     cancelable: true,
     clientX: 100,
@@ -128,10 +132,10 @@ describe("BoardCanvas", () => {
     const canvas = getCanvas(container);
 
     act(() => {
-      fireMouseEvent(canvas, "mousedown", { clientX: 200, clientY: 150 });
+      firePointerEvent(canvas, "pointerdown", { clientX: 200, clientY: 150 });
     });
     act(() => {
-      fireMouseEvent(canvas, "mouseup", { clientX: 200, clientY: 150 });
+      firePointerEvent(canvas, "pointerup", { clientX: 200, clientY: 150 });
     });
 
     expect(onDrawCreate).toHaveBeenCalled();
@@ -144,13 +148,13 @@ describe("BoardCanvas", () => {
     const canvas = getCanvas(container);
 
     act(() => {
-      fireMouseEvent(canvas, "mousedown", { clientX: 200, clientY: 150 });
+      firePointerEvent(canvas, "pointerdown", { clientX: 200, clientY: 150 });
     });
     act(() => {
-      fireMouseEvent(canvas, "mousemove", { clientX: 210, clientY: 160 });
+      firePointerEvent(canvas, "pointermove", { clientX: 210, clientY: 160 });
     });
     act(() => {
-      fireMouseEvent(canvas, "mouseup", { clientX: 210, clientY: 160 });
+      firePointerEvent(canvas, "pointerup", { clientX: 210, clientY: 160 });
     });
 
     expect(props.onPan).not.toHaveBeenCalled();
@@ -169,10 +173,10 @@ describe("BoardCanvas", () => {
 
       // Click on the already-selected object (within its bounds: 100-300, 100-300)
       act(() => {
-        fireMouseEvent(canvas, "mousedown", { clientX: 150, clientY: 150 });
+        firePointerEvent(canvas, "pointerdown", { clientX: 150, clientY: 150 });
       });
       act(() => {
-        fireMouseEvent(canvas, "mouseup", { clientX: 150, clientY: 150 });
+        firePointerEvent(canvas, "pointerup", { clientX: 150, clientY: 150 });
       });
 
       expect(props.onObjectClick).toHaveBeenCalledWith("sticky-1");
@@ -188,14 +192,14 @@ describe("BoardCanvas", () => {
       const canvas = getCanvas(container);
 
       act(() => {
-        fireMouseEvent(canvas, "mousedown", { clientX: 150, clientY: 150 });
+        firePointerEvent(canvas, "pointerdown", { clientX: 150, clientY: 150 });
       });
       // Move far enough to be a drag (> 3px)
       act(() => {
-        fireMouseEvent(canvas, "mousemove", { clientX: 170, clientY: 170 });
+        firePointerEvent(canvas, "pointermove", { clientX: 170, clientY: 170 });
       });
       act(() => {
-        fireMouseEvent(canvas, "mouseup", { clientX: 170, clientY: 170 });
+        firePointerEvent(canvas, "pointerup", { clientX: 170, clientY: 170 });
       });
 
       expect(props.onObjectClick).not.toHaveBeenCalled();
@@ -211,10 +215,10 @@ describe("BoardCanvas", () => {
       const canvas = getCanvas(container);
 
       act(() => {
-        fireMouseEvent(canvas, "mousedown", { clientX: 150, clientY: 150 });
+        firePointerEvent(canvas, "pointerdown", { clientX: 150, clientY: 150 });
       });
       act(() => {
-        fireMouseEvent(canvas, "mouseup", { clientX: 150, clientY: 150 });
+        firePointerEvent(canvas, "pointerup", { clientX: 150, clientY: 150 });
       });
 
       expect(props.onObjectClick).not.toHaveBeenCalled();
@@ -281,13 +285,13 @@ describe("BoardCanvas", () => {
       const canvas = getCanvas(container);
 
       act(() => {
-        fireMouseEvent(canvas, "mousedown", { clientX: 400, clientY: 300 });
+        firePointerEvent(canvas, "pointerdown", { clientX: 400, clientY: 300 });
       });
       act(() => {
-        fireMouseEvent(canvas, "mousemove", { clientX: 420, clientY: 320 });
+        firePointerEvent(canvas, "pointermove", { clientX: 420, clientY: 320 });
       });
       act(() => {
-        fireMouseEvent(canvas, "mouseup", { clientX: 420, clientY: 320 });
+        firePointerEvent(canvas, "pointerup", { clientX: 420, clientY: 320 });
       });
 
       expect(props.onPan).not.toHaveBeenCalled();
@@ -299,13 +303,13 @@ describe("BoardCanvas", () => {
       const canvas = getCanvas(container);
 
       act(() => {
-        fireMouseEvent(canvas, "mousedown", { clientX: 400, clientY: 300 });
+        firePointerEvent(canvas, "pointerdown", { clientX: 400, clientY: 300 });
       });
       act(() => {
-        fireMouseEvent(canvas, "mousemove", { clientX: 420, clientY: 320 });
+        firePointerEvent(canvas, "pointermove", { clientX: 420, clientY: 320 });
       });
       act(() => {
-        fireMouseEvent(canvas, "mouseup", { clientX: 420, clientY: 320 });
+        firePointerEvent(canvas, "pointerup", { clientX: 420, clientY: 320 });
       });
 
       expect(props.onPan).toHaveBeenCalled();
@@ -317,13 +321,13 @@ describe("BoardCanvas", () => {
       const canvas = getCanvas(container);
 
       act(() => {
-        fireMouseEvent(canvas, "mousedown", { clientX: 400, clientY: 300, button: 1 });
+        firePointerEvent(canvas, "pointerdown", { clientX: 400, clientY: 300, button: 1 });
       });
       act(() => {
-        fireMouseEvent(canvas, "mousemove", { clientX: 420, clientY: 320 });
+        firePointerEvent(canvas, "pointermove", { clientX: 420, clientY: 320 });
       });
       act(() => {
-        fireMouseEvent(canvas, "mouseup", { clientX: 420, clientY: 320 });
+        firePointerEvent(canvas, "pointerup", { clientX: 420, clientY: 320 });
       });
 
       expect(props.onPan).toHaveBeenCalled();
@@ -339,7 +343,7 @@ describe("BoardCanvas", () => {
       const canvas = getCanvas(container);
 
       act(() => {
-        fireMouseEvent(canvas, "mousedown", {
+        firePointerEvent(canvas, "pointerdown", {
           clientX: 150,
           clientY: 150,
           shiftKey: true,
@@ -355,13 +359,13 @@ describe("BoardCanvas", () => {
       const canvas = getCanvas(container);
 
       act(() => {
-        fireMouseEvent(canvas, "mousedown", { clientX: 400, clientY: 300 });
+        firePointerEvent(canvas, "pointerdown", { clientX: 400, clientY: 300 });
       });
       act(() => {
-        fireMouseEvent(canvas, "mousemove", { clientX: 500, clientY: 400 });
+        firePointerEvent(canvas, "pointermove", { clientX: 500, clientY: 400 });
       });
       act(() => {
-        fireMouseEvent(canvas, "mouseup", { clientX: 500, clientY: 400 });
+        firePointerEvent(canvas, "pointerup", { clientX: 500, clientY: 400 });
       });
 
       expect(props.onSelectionBox).toHaveBeenCalled();
@@ -383,11 +387,11 @@ describe("BoardCanvas", () => {
 
       // Mousedown on obj-1 (within 100-300, 100-300)
       act(() => {
-        fireMouseEvent(canvas, "mousedown", { clientX: 150, clientY: 150 });
+        firePointerEvent(canvas, "pointerdown", { clientX: 150, clientY: 150 });
       });
       // Drag 20px right, 10px down (exceeds CLICK_THRESHOLD of 3)
       act(() => {
-        fireMouseEvent(canvas, "mousemove", { clientX: 170, clientY: 160 });
+        firePointerEvent(canvas, "pointermove", { clientX: 170, clientY: 160 });
       });
 
       // onObjectsMove should be called with moves for BOTH selected objects
@@ -414,11 +418,11 @@ describe("BoardCanvas", () => {
 
       // Mousedown on obj-1
       act(() => {
-        fireMouseEvent(canvas, "mousedown", { clientX: 150, clientY: 150 });
+        firePointerEvent(canvas, "pointerdown", { clientX: 150, clientY: 150 });
       });
       // Drag 20px right, 10px down (zoom=1, so screen delta = world delta)
       act(() => {
-        fireMouseEvent(canvas, "mousemove", { clientX: 170, clientY: 160 });
+        firePointerEvent(canvas, "pointermove", { clientX: 170, clientY: 160 });
       });
 
       const moves = props.onObjectsMove.mock.calls[0][0] as {
@@ -591,13 +595,13 @@ describe("BoardCanvas", () => {
 
       // Click on the SE handle (bottom-right corner: x=300, y=250)
       act(() => {
-        fireMouseEvent(canvas, "mousedown", { clientX: 300, clientY: 250 });
+        firePointerEvent(canvas, "pointerdown", { clientX: 300, clientY: 250 });
       });
       act(() => {
-        fireMouseEvent(canvas, "mousemove", { clientX: 350, clientY: 300 });
+        firePointerEvent(canvas, "pointermove", { clientX: 350, clientY: 300 });
       });
       act(() => {
-        fireMouseEvent(canvas, "mouseup", { clientX: 350, clientY: 300 });
+        firePointerEvent(canvas, "pointerup", { clientX: 350, clientY: 300 });
       });
 
       expect(props.onObjectResize).toHaveBeenCalled();

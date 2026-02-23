@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { BoardObject } from "@collabboard/shared";
-import type { InteractionContext, CanvasMouseEvent } from "../../interaction-types";
+import type { InteractionContext, CanvasPointerEvent } from "../../interaction-types";
 import { createDrawConnectorMode } from "../draw-connector-mode";
 
 function createMockObject(overrides: Partial<BoardObject>): BoardObject {
@@ -26,7 +26,7 @@ function createMockObject(overrides: Partial<BoardObject>): BoardObject {
   } as BoardObject;
 }
 
-function makeEvent(overrides: Partial<CanvasMouseEvent> = {}): CanvasMouseEvent {
+function makeEvent(overrides: Partial<CanvasPointerEvent> = {}): CanvasPointerEvent {
   return {
     worldX: 0,
     worldY: 0,
@@ -84,7 +84,7 @@ describe("createDrawConnectorMode", () => {
     it("sets source when clicking on an object", () => {
       const ctx = createMockContext([rect1, rect2]);
       // Click inside rect1
-      mode.onMouseDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
       const state = mode.getState();
       expect(state.sourceId).toBe("r1");
       expect(state.sourcePort).toBeTruthy();
@@ -93,7 +93,7 @@ describe("createDrawConnectorMode", () => {
     it("does not set source when clicking on empty canvas", () => {
       const ctx = createMockContext([rect1, rect2]);
       // Click outside both objects
-      mode.onMouseDown(ctx, makeEvent({ worldX: 50, worldY: 50 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 50, worldY: 50 }));
       const state = mode.getState();
       expect(state.sourceId).toBeNull();
     });
@@ -103,7 +103,7 @@ describe("createDrawConnectorMode", () => {
     it("selects the nearest port based on click position", () => {
       const ctx = createMockContext([rect1]);
       // Click near the right edge of rect1 (x=100+200=300, y=175 center)
-      mode.onMouseDown(ctx, makeEvent({ worldX: 295, worldY: 175 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 295, worldY: 175 }));
       const state = mode.getState();
       expect(state.sourcePort).toBe("right");
     });
@@ -111,7 +111,7 @@ describe("createDrawConnectorMode", () => {
     it("selects top port when clicking near top edge", () => {
       const ctx = createMockContext([rect1]);
       // Click near the top edge (center-x=200, y=100)
-      mode.onMouseDown(ctx, makeEvent({ worldX: 200, worldY: 105 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 200, worldY: 105 }));
       const state = mode.getState();
       expect(state.sourcePort).toBe("top");
     });
@@ -120,8 +120,8 @@ describe("createDrawConnectorMode", () => {
   describe("ghost line state", () => {
     it("tracks cursor position after source is selected", () => {
       const ctx = createMockContext([rect1, rect2]);
-      mode.onMouseDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
-      mode.onMouseMove(ctx, makeEvent({ worldX: 400, worldY: 200 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
+      mode.onPointerMove(ctx, makeEvent({ worldX: 400, worldY: 200 }));
       const state = mode.getState();
       expect(state.cursorX).toBe(400);
       expect(state.cursorY).toBe(200);
@@ -129,7 +129,7 @@ describe("createDrawConnectorMode", () => {
 
     it("does not track cursor when no source is selected", () => {
       const ctx = createMockContext([rect1]);
-      mode.onMouseMove(ctx, makeEvent({ worldX: 400, worldY: 200 }));
+      mode.onPointerMove(ctx, makeEvent({ worldX: 400, worldY: 200 }));
       const state = mode.getState();
       expect(state.cursorX).toBeUndefined();
     });
@@ -139,9 +139,9 @@ describe("createDrawConnectorMode", () => {
     it("calls mutate with a connector object when clicking a second object", () => {
       const ctx = createMockContext([rect1, rect2]);
       // Click rect1 as source
-      mode.onMouseDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
       // Click rect2 as target
-      mode.onMouseUp(ctx, makeEvent({ worldX: 600, worldY: 175 }));
+      mode.onPointerUp(ctx, makeEvent({ worldX: 600, worldY: 175 }));
       expect(ctx.mutate).toHaveBeenCalled();
       const mutatedObjects = (ctx.mutate as ReturnType<typeof vi.fn>).mock
         .calls[0][0] as BoardObject[];
@@ -155,16 +155,16 @@ describe("createDrawConnectorMode", () => {
   describe("cancellation", () => {
     it("resets source when clicking empty canvas after source selection", () => {
       const ctx = createMockContext([rect1, rect2]);
-      mode.onMouseDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
       expect(mode.getState().sourceId).toBe("r1");
       // Click on empty canvas
-      mode.onMouseDown(ctx, makeEvent({ worldX: 50, worldY: 50 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 50, worldY: 50 }));
       expect(mode.getState().sourceId).toBeNull();
     });
 
     it("reset() clears all state", () => {
       const ctx = createMockContext([rect1]);
-      mode.onMouseDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
       mode.reset();
       const state = mode.getState();
       expect(state.sourceId).toBeNull();
@@ -175,8 +175,8 @@ describe("createDrawConnectorMode", () => {
   describe("self-connection prevention", () => {
     it("does not create connector when source and target are the same object", () => {
       const ctx = createMockContext([rect1]);
-      mode.onMouseDown(ctx, makeEvent({ worldX: 150, worldY: 150 }));
-      mode.onMouseUp(ctx, makeEvent({ worldX: 250, worldY: 200 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 150, worldY: 150 }));
+      mode.onPointerUp(ctx, makeEvent({ worldX: 250, worldY: 200 }));
       expect(ctx.mutate).not.toHaveBeenCalled();
     });
   });
@@ -185,21 +185,21 @@ describe("createDrawConnectorMode", () => {
     it("selects bottom port when clicking near bottom edge", () => {
       const ctx = createMockContext([rect1]);
       // Bottom-center: x=200, y=100+150=250
-      mode.onMouseDown(ctx, makeEvent({ worldX: 200, worldY: 245 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 200, worldY: 245 }));
       expect(mode.getState().sourcePort).toBe("bottom");
     });
 
     it("selects left port when clicking near left edge", () => {
       const ctx = createMockContext([rect1]);
       // Left-center: x=100, y=175
-      mode.onMouseDown(ctx, makeEvent({ worldX: 105, worldY: 175 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 105, worldY: 175 }));
       expect(mode.getState().sourcePort).toBe("left");
     });
 
     it("selects center port when clicking near the center of the object", () => {
       const ctx = createMockContext([rect1]);
       // Center: x=200, y=175
-      mode.onMouseDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
       const port = mode.getState().sourcePort;
       // center is equidistant from all sides — center port wins when perfectly centered
       expect(["center", "top", "right", "bottom", "left"]).toContain(port);
@@ -210,9 +210,9 @@ describe("createDrawConnectorMode", () => {
     it("stores the source port and target port on the connector", () => {
       const ctx = createMockContext([rect1, rect2]);
       // Click near right edge of rect1 to get "right" source port
-      mode.onMouseDown(ctx, makeEvent({ worldX: 295, worldY: 175 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 295, worldY: 175 }));
       // Click near left edge of rect2 (x=500) to get "left" target port
-      mode.onMouseUp(ctx, makeEvent({ worldX: 505, worldY: 175 }));
+      mode.onPointerUp(ctx, makeEvent({ worldX: 505, worldY: 175 }));
       expect(ctx.mutate).toHaveBeenCalled();
       const mutated = (ctx.mutate as ReturnType<typeof vi.fn>).mock.calls[0][0] as BoardObject[];
       const connector = mutated[0];
@@ -222,24 +222,24 @@ describe("createDrawConnectorMode", () => {
 
     it("connector has arrow_style='end' by default", () => {
       const ctx = createMockContext([rect1, rect2]);
-      mode.onMouseDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
-      mode.onMouseUp(ctx, makeEvent({ worldX: 600, worldY: 175 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
+      mode.onPointerUp(ctx, makeEvent({ worldX: 600, worldY: 175 }));
       const mutated = (ctx.mutate as ReturnType<typeof vi.fn>).mock.calls[0][0] as BoardObject[];
       expect(mutated[0].properties.arrow_style).toBe("end");
     });
 
     it("connector has stroke_style='solid' by default", () => {
       const ctx = createMockContext([rect1, rect2]);
-      mode.onMouseDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
-      mode.onMouseUp(ctx, makeEvent({ worldX: 600, worldY: 175 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
+      mode.onPointerUp(ctx, makeEvent({ worldX: 600, worldY: 175 }));
       const mutated = (ctx.mutate as ReturnType<typeof vi.fn>).mock.calls[0][0] as BoardObject[];
       expect(mutated[0].properties.stroke_style).toBe("solid");
     });
 
     it("connector has type='connector'", () => {
       const ctx = createMockContext([rect1, rect2]);
-      mode.onMouseDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
-      mode.onMouseUp(ctx, makeEvent({ worldX: 600, worldY: 175 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
+      mode.onPointerUp(ctx, makeEvent({ worldX: 600, worldY: 175 }));
       const mutated = (ctx.mutate as ReturnType<typeof vi.fn>).mock.calls[0][0] as BoardObject[];
       expect(mutated[0].type).toBe("connector");
     });
@@ -248,55 +248,55 @@ describe("createDrawConnectorMode", () => {
   describe("state reset after connector creation", () => {
     it("clears sourceId after a successful connector creation", () => {
       const ctx = createMockContext([rect1, rect2]);
-      mode.onMouseDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
-      mode.onMouseUp(ctx, makeEvent({ worldX: 600, worldY: 175 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
+      mode.onPointerUp(ctx, makeEvent({ worldX: 600, worldY: 175 }));
       expect(mode.getState().sourceId).toBeNull();
     });
 
     it("clears sourcePort after a successful connector creation", () => {
       const ctx = createMockContext([rect1, rect2]);
-      mode.onMouseDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
-      mode.onMouseUp(ctx, makeEvent({ worldX: 600, worldY: 175 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
+      mode.onPointerUp(ctx, makeEvent({ worldX: 600, worldY: 175 }));
       expect(mode.getState().sourcePort).toBeNull();
     });
 
     it("clears cursor position after a successful connector creation", () => {
       const ctx = createMockContext([rect1, rect2]);
-      mode.onMouseDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
-      mode.onMouseMove(ctx, makeEvent({ worldX: 400, worldY: 175 }));
-      mode.onMouseUp(ctx, makeEvent({ worldX: 600, worldY: 175 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
+      mode.onPointerMove(ctx, makeEvent({ worldX: 400, worldY: 175 }));
+      mode.onPointerUp(ctx, makeEvent({ worldX: 600, worldY: 175 }));
       expect(mode.getState().cursorX).toBeUndefined();
       expect(mode.getState().cursorY).toBeUndefined();
     });
   });
 
-  describe("onMouseUp with no source set", () => {
+  describe("onPointerUp with no source set", () => {
     it("does nothing when mouseUp fires before any mouseDown", () => {
       const ctx = createMockContext([rect1, rect2]);
-      mode.onMouseUp(ctx, makeEvent({ worldX: 600, worldY: 175 }));
+      mode.onPointerUp(ctx, makeEvent({ worldX: 600, worldY: 175 }));
       expect(ctx.mutate).not.toHaveBeenCalled();
     });
 
     it("does nothing when mouseUp fires on empty canvas with no source", () => {
       const ctx = createMockContext([rect1]);
-      mode.onMouseUp(ctx, makeEvent({ worldX: 50, worldY: 50 }));
+      mode.onPointerUp(ctx, makeEvent({ worldX: 50, worldY: 50 }));
       expect(ctx.mutate).not.toHaveBeenCalled();
     });
   });
 
-  describe("onMouseUp with source but no target hit", () => {
+  describe("onPointerUp with source but no target hit", () => {
     it("does not call mutate when mouseUp is on empty canvas", () => {
       const ctx = createMockContext([rect1]);
-      mode.onMouseDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
       // Release on empty canvas
-      mode.onMouseUp(ctx, makeEvent({ worldX: 900, worldY: 900 }));
+      mode.onPointerUp(ctx, makeEvent({ worldX: 900, worldY: 900 }));
       expect(ctx.mutate).not.toHaveBeenCalled();
     });
 
     it("clears state after releasing on empty canvas", () => {
       const ctx = createMockContext([rect1]);
-      mode.onMouseDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
-      mode.onMouseUp(ctx, makeEvent({ worldX: 900, worldY: 900 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
+      mode.onPointerUp(ctx, makeEvent({ worldX: 900, worldY: 900 }));
       expect(mode.getState().sourceId).toBeNull();
     });
   });
@@ -304,10 +304,10 @@ describe("createDrawConnectorMode", () => {
   describe("ghost line — multiple moves", () => {
     it("updates cursorX/Y on each mousemove while source is set", () => {
       const ctx = createMockContext([rect1]);
-      mode.onMouseDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
-      mode.onMouseMove(ctx, makeEvent({ worldX: 350, worldY: 200 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
+      mode.onPointerMove(ctx, makeEvent({ worldX: 350, worldY: 200 }));
       expect(mode.getState().cursorX).toBe(350);
-      mode.onMouseMove(ctx, makeEvent({ worldX: 450, worldY: 250 }));
+      mode.onPointerMove(ctx, makeEvent({ worldX: 450, worldY: 250 }));
       expect(mode.getState().cursorX).toBe(450);
       expect(mode.getState().cursorY).toBe(250);
     });
@@ -316,8 +316,8 @@ describe("createDrawConnectorMode", () => {
   describe("reset() clears cursor position", () => {
     it("reset() clears cursorX and cursorY", () => {
       const ctx = createMockContext([rect1]);
-      mode.onMouseDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
-      mode.onMouseMove(ctx, makeEvent({ worldX: 350, worldY: 200 }));
+      mode.onPointerDown(ctx, makeEvent({ worldX: 200, worldY: 175 }));
+      mode.onPointerMove(ctx, makeEvent({ worldX: 350, worldY: 200 }));
       mode.reset();
       expect(mode.getState().cursorX).toBeUndefined();
       expect(mode.getState().cursorY).toBeUndefined();

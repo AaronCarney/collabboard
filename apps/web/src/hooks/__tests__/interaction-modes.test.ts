@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { selectMode } from "../interaction-modes/select-mode";
 import { panMode } from "../interaction-modes/pan-mode";
 import { drawShapeMode } from "../interaction-modes/draw-shape-mode";
-import type { InteractionContext, CanvasMouseEvent } from "../interaction-types";
+import type { InteractionContext, CanvasPointerEvent } from "../interaction-types";
 import type { BoardObject, StickyNoteObject } from "@collabboard/shared";
 
 function makeObj(overrides: Partial<StickyNoteObject> = {}): StickyNoteObject {
@@ -54,7 +54,7 @@ function makeCtx(objects: BoardObject[] = []): InteractionContext {
   };
 }
 
-function makeEvent(overrides: Partial<CanvasMouseEvent> = {}): CanvasMouseEvent {
+function makeEvent(overrides: Partial<CanvasPointerEvent> = {}): CanvasPointerEvent {
   return {
     worldX: 0,
     worldY: 0,
@@ -76,7 +76,7 @@ describe("selectMode", () => {
     const ctx = makeCtx([obj]);
     const event = makeEvent({ worldX: 150, worldY: 150 });
 
-    selectMode.onMouseDown(ctx, event);
+    selectMode.onPointerDown(ctx, event);
 
     expect(ctx.selectObjects).toHaveBeenCalled();
   });
@@ -86,7 +86,7 @@ describe("selectMode", () => {
     const ctx = makeCtx([obj]);
     const event = makeEvent({ worldX: 50, worldY: 50 }); // outside object
 
-    selectMode.onMouseDown(ctx, event);
+    selectMode.onPointerDown(ctx, event);
 
     expect(ctx.selectObjects).toHaveBeenCalledWith(new Set());
   });
@@ -97,14 +97,14 @@ describe("panMode", () => {
     expect(panMode.cursor).toBe("grab");
   });
 
-  it("onMouseDown/Move/Up do not throw", () => {
+  it("onPointerDown/Move/Up do not throw", () => {
     const ctx = makeCtx();
     const event = makeEvent();
 
     expect(() => {
-      panMode.onMouseDown(ctx, event);
-      panMode.onMouseMove(ctx, event);
-      panMode.onMouseUp(ctx, event);
+      panMode.onPointerDown(ctx, event);
+      panMode.onPointerMove(ctx, event);
+      panMode.onPointerUp(ctx, event);
     }).not.toThrow();
   });
 });
@@ -120,14 +120,14 @@ describe("drawShapeMode", () => {
     expect(mode.cursor).toBe("crosshair");
   });
 
-  it("onMouseDown/Move/Up do not throw", () => {
+  it("onPointerDown/Move/Up do not throw", () => {
     const ctx = makeCtx();
     const event = makeEvent({ worldX: 200, worldY: 200 });
 
     expect(() => {
-      mode.onMouseDown(ctx, event);
-      mode.onMouseMove(ctx, event);
-      mode.onMouseUp(ctx, event);
+      mode.onPointerDown(ctx, event);
+      mode.onPointerMove(ctx, event);
+      mode.onPointerUp(ctx, event);
     }).not.toThrow();
   });
 });
