@@ -61,7 +61,6 @@ const HANDLE_SIZE = 8;
 const MIN_OBJECT_SIZE = 20;
 const CLICK_THRESHOLD = 3;
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function BoardCanvas({
   objects,
   camera,
@@ -83,7 +82,7 @@ export function BoardCanvas({
   onCursorMove,
   onDrawCreate,
   onConnectorCreate,
-}: BoardCanvasProps) {
+}: BoardCanvasProps): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);

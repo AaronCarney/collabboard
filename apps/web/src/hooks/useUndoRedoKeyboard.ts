@@ -12,8 +12,11 @@ interface UseUndoRedoKeyboardOptions {
  * Registers Ctrl+Z (undo) and Ctrl+Y / Ctrl+Shift+Z (redo) keyboard shortcuts.
  * Prevents default browser undo/redo behavior when active.
  */
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function useUndoRedoKeyboard({ undo, redo, enabled = true }: UseUndoRedoKeyboardOptions) {
+export function useUndoRedoKeyboard({
+  undo,
+  redo,
+  enabled = true,
+}: UseUndoRedoKeyboardOptions): void {
   useEffect(() => {
     if (!enabled) return;
 

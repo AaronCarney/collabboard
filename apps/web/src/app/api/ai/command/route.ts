@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { z } from "@collabboard/shared";
+import { boardObjectSchema } from "@collabboard/shared";
 import type { BoardObject } from "@collabboard/shared";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { routeCommand } from "@/lib/ai/command-router";
@@ -116,8 +117,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  const parsedObjects = boardObjectSchema.array().safeParse(existingObjects);
+  const validObjects: BoardObject[] = parsedObjects.success ? parsedObjects.data : [];
+
   const safeSelectedIds = (context?.selectedObjectIds ?? []).filter((id: string) =>
-    (existingObjects as BoardObject[]).some((o: BoardObject) => o.id === id)
+    validObjects.some((o) => o.id === id)
   );
 
   try {
@@ -126,7 +130,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         command,
         boardId,
         userId,
-        existingObjects: existingObjects as BoardObject[],
+        existingObjects: validObjects,
         viewportCenter: context?.viewportCenter,
         selectedObjectIds: safeSelectedIds,
       })

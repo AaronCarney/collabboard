@@ -6,8 +6,7 @@ import { hasRenderer, getRenderer } from "@/components/board/renderers/renderer-
  * Convert screen (pixel) coordinates to world coordinates,
  * accounting for camera pan and zoom.
  */
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function screenToWorld(sx: number, sy: number, camera: Camera) {
+export function screenToWorld(sx: number, sy: number, camera: Camera): { x: number; y: number } {
   return {
     x: (sx - camera.x) / camera.zoom,
     y: (sy - camera.y) / camera.zoom,

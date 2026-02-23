@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
+import { boardObjectSchema } from "@collabboard/shared";
 import type { BoardObject } from "@collabboard/shared";
 
 export type TemplateName = "swot" | "kanban" | "retrospective" | "brainstorm" | "user_journey";
@@ -52,7 +53,7 @@ function makeObj(
   boardId: string,
   userId: string
 ): BoardObject {
-  return {
+  const raw = {
     id: uuidv4(),
     board_id: boardId,
     x: 0,
@@ -69,7 +70,8 @@ function makeObj(
     parent_frame_id: null,
     properties: {},
     ...overrides,
-  } as BoardObject;
+  };
+  return boardObjectSchema.parse(raw);
 }
 
 function generateSwot(

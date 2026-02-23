@@ -8,8 +8,7 @@ import { showToast } from "@/lib/toast";
 import type { Board } from "@/types/board";
 import { FREE_TIER_BOARD_LIMIT, boardSchema } from "@collabboard/shared";
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export default function DashboardPage() {
+export default function DashboardPage(): React.JSX.Element {
   const { user } = useUser();
   const { getToken } = useAuth();
   const router = useRouter();
