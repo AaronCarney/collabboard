@@ -114,8 +114,8 @@ async function routeToLlm(
       });
 
       plan = result.output;
-      totalInputTokens += Number(result.usage.promptTokens ?? 0);
-      totalOutputTokens += Number(result.usage.completionTokens ?? 0);
+      totalInputTokens += result.usage.inputTokens ?? 0;
+      totalOutputTokens += result.usage.outputTokens ?? 0;
       break;
     } catch (err: unknown) {
       if (err instanceof NoObjectGeneratedError && attempt < MAX_RETRIES) {

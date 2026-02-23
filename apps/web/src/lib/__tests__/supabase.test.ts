@@ -2,8 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ─────────────────────────────────────────────────────────────
 // Mock @supabase/supabase-js so we can inspect createClient args
+// Set env vars before module evaluation (vi.hoisted runs first)
 // ─────────────────────────────────────────────────────────────
-const mockCreateClient = vi.hoisted(() => vi.fn(() => ({ __mock: true })));
+const mockCreateClient = vi.hoisted(() => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://test.supabase.co";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "test-anon-key";
+  return vi.fn(() => ({ __mock: true }));
+});
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: mockCreateClient,

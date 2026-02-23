@@ -100,7 +100,7 @@ describe("createBoardKeyHandler", () => {
     expect(preventDefaultSpy).toHaveBeenCalled();
   });
 
-  it("Cmd+K calls onToggleAiBar", () => {
+  it("Cmd+K calls onToggleAiBar and prevents default", () => {
     const onToggleAiBar = vi.fn();
     const handler = createBoardKeyHandler({
       editingId: null,
@@ -110,11 +110,14 @@ describe("createBoardKeyHandler", () => {
       objects: [],
       onToggleAiBar,
     });
-    handler(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
+    const event = new KeyboardEvent("keydown", { key: "k", metaKey: true });
+    const preventDefaultSpy = vi.spyOn(event, "preventDefault");
+    handler(event);
     expect(onToggleAiBar).toHaveBeenCalledOnce();
+    expect(preventDefaultSpy).toHaveBeenCalled();
   });
 
-  it("Ctrl+K calls onToggleAiBar", () => {
+  it("Ctrl+K calls onToggleAiBar and prevents default", () => {
     const onToggleAiBar = vi.fn();
     const handler = createBoardKeyHandler({
       editingId: null,
@@ -124,8 +127,11 @@ describe("createBoardKeyHandler", () => {
       objects: [],
       onToggleAiBar,
     });
-    handler(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }));
+    const event = new KeyboardEvent("keydown", { key: "k", ctrlKey: true });
+    const preventDefaultSpy = vi.spyOn(event, "preventDefault");
+    handler(event);
     expect(onToggleAiBar).toHaveBeenCalledOnce();
+    expect(preventDefaultSpy).toHaveBeenCalled();
   });
 
   it("Cmd+K is ignored when editing text", () => {
@@ -140,6 +146,30 @@ describe("createBoardKeyHandler", () => {
     });
     handler(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
     expect(onToggleAiBar).not.toHaveBeenCalled();
+  });
+
+  it("Cmd+K always opens the AI bar (not toggle)", () => {
+    let aiBarVisible = false;
+    const onToggleAiBar = vi.fn(() => {
+      // Simulates the page-level wiring: setAiBarVisible(true)
+      aiBarVisible = true;
+    });
+    const handler = createBoardKeyHandler({
+      editingId: null,
+      handleDelete: vi.fn(),
+      setSelectedIds: vi.fn(),
+      setActiveTool: vi.fn(),
+      objects: [],
+      onToggleAiBar,
+    });
+
+    // First press: opens
+    handler(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
+    expect(aiBarVisible).toBe(true);
+
+    // Second press: should still be open (always opens, not toggles)
+    handler(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
+    expect(aiBarVisible).toBe(true);
   });
 });
 

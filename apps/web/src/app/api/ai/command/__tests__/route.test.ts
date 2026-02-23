@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import type { routeCommand as RouteCommandFn } from "@/lib/ai/command-router";
+import { _resetRateLimiter } from "@/lib/ai/rate-limiter";
 
 // ---- Mocks ----
 
@@ -108,6 +109,8 @@ describe("POST /api/ai/command", () => {
     vi.clearAllMocks();
     mockRouteCommand.mockResolvedValue(defaultRouteResult());
     mockEnqueueForUser.mockImplementation((_userId: string, fn: () => Promise<unknown>) => fn());
+    // Reset rate limiter between tests
+    _resetRateLimiter();
   });
 
   // ---- Auth ----
@@ -378,6 +381,7 @@ describe("POST /api/ai/command", () => {
     it("deletes objects from board_objects when routeCommand returns deletedIds (AC1)", async () => {
       mockAuth.mockResolvedValue({ userId: OWNER_ID });
       const { mockDelete, mockIn } = setupBoardQueryWithDelete();
+      setupBroadcastChannel("SUBSCRIBED");
 
       const deletedIds = [
         "aaaa1111-1111-1111-1111-111111111111",
@@ -396,6 +400,58 @@ describe("POST /api/ai/command", () => {
       expect(json.success).toBe(true);
       expect(mockDelete).toHaveBeenCalled();
       expect(mockIn).toHaveBeenCalledWith("id", deletedIds);
+    });
+
+    it("broadcasts object:delete for each deleted ID", async () => {
+      mockAuth.mockResolvedValue({ userId: OWNER_ID });
+      setupBoardQueryWithDelete();
+      const { send } = setupBroadcastChannel("SUBSCRIBED");
+
+      const deletedIds = ["del-1", "del-2"];
+      mockRouteCommand.mockResolvedValue({
+        ...defaultRouteResult(),
+        deletedIds,
+      });
+
+      const { POST } = await import("../route");
+      const res = await POST(makeRequest({ boardId: BOARD_ID, command: "delete these" }));
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(json.success).toBe(true);
+      expect(send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "broadcast",
+          event: "object:delete",
+          payload: { id: "del-1", userId: OWNER_ID },
+        })
+      );
+      expect(send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "broadcast",
+          event: "object:delete",
+          payload: { id: "del-2", userId: OWNER_ID },
+        })
+      );
+    });
+
+    it("includes deletedIds in the success response", async () => {
+      mockAuth.mockResolvedValue({ userId: OWNER_ID });
+      setupBoardQueryWithDelete();
+      setupBroadcastChannel("SUBSCRIBED");
+
+      const deletedIds = ["del-1"];
+      mockRouteCommand.mockResolvedValue({
+        ...defaultRouteResult(),
+        deletedIds,
+      });
+
+      const { POST } = await import("../route");
+      const res = await POST(makeRequest({ boardId: BOARD_ID, command: "delete" }));
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(json.deletedIds).toEqual(deletedIds);
     });
 
     it("calls both upsert and delete when routeCommand returns objects AND deletedIds (AC2)", async () => {
@@ -425,6 +481,7 @@ describe("POST /api/ai/command", () => {
     it("returns error when delete query fails — no partial success (AC3)", async () => {
       mockAuth.mockResolvedValue({ userId: OWNER_ID });
       setupBoardQueryWithDelete({ deleteError: { message: "constraint violation" } });
+      setupBroadcastChannel("SUBSCRIBED");
 
       const deletedIds = ["obj-to-delete"];
       mockRouteCommand.mockResolvedValue({
@@ -438,6 +495,64 @@ describe("POST /api/ai/command", () => {
 
       expect(res.status).toBe(500);
       expect(json.success).toBe(false);
+    });
+  });
+
+  // ---- Rate limiting ----
+
+  describe("rate limiting", () => {
+    it("returns 429 after 6 requests in one minute", async () => {
+      mockAuth.mockResolvedValue({ userId: OWNER_ID });
+      setupBoardQuery({ id: BOARD_ID, created_by: OWNER_ID });
+
+      const { POST } = await import("../route");
+
+      // First 6 should succeed
+      for (let i = 0; i < 6; i++) {
+        const res = await POST(makeRequest({ boardId: BOARD_ID, command: `cmd-${String(i)}` }));
+        expect(res.status).toBe(200);
+      }
+
+      // 7th should be rate limited
+      const res = await POST(makeRequest({ boardId: BOARD_ID, command: "one-too-many" }));
+      const json = await res.json();
+
+      expect(res.status).toBe(429);
+      expect(json.code).toBe("RATE_LIMITED");
+    });
+
+    it("rate limits are per-user", async () => {
+      setupBoardQuery({ id: BOARD_ID, created_by: OWNER_ID });
+
+      const { POST } = await import("../route");
+
+      // Exhaust rate limit for OWNER_ID
+      mockAuth.mockResolvedValue({ userId: OWNER_ID });
+      for (let i = 0; i < 6; i++) {
+        await POST(makeRequest({ boardId: BOARD_ID, command: `cmd-${String(i)}` }));
+      }
+
+      // Different user should still succeed (set board owner to match)
+      mockAuth.mockResolvedValue({ userId: OTHER_USER_ID });
+      const boardChain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({
+          data: { id: BOARD_ID, created_by: OTHER_USER_ID },
+          error: null,
+        }),
+      };
+      const objectsChain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+      };
+      mockFrom.mockImplementation((table: string) => {
+        if (table === "boards") return boardChain;
+        return objectsChain;
+      });
+
+      const res = await POST(makeRequest({ boardId: BOARD_ID, command: "other-user-cmd" }));
+      expect(res.status).toBe(200);
     });
   });
 

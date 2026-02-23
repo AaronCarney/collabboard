@@ -97,7 +97,7 @@ const thePlan = {
 function setupSuccessfulMocks(): void {
   mockGenerateText.mockResolvedValue({
     output: thePlan,
-    usage: { promptTokens: 100, completionTokens: 50 },
+    usage: { inputTokens: 100, outputTokens: 50 },
   });
 
   mockValidatePlan.mockReturnValue({
@@ -263,7 +263,7 @@ describe("routeCommand", () => {
     const { NoObjectGeneratedError } = await import("ai");
     mockGenerateText.mockRejectedValueOnce(new NoObjectGeneratedError()).mockResolvedValueOnce({
       output: thePlan,
-      usage: { promptTokens: 100, completionTokens: 50 },
+      usage: { inputTokens: 100, outputTokens: 50 },
     });
 
     const result = await routeCommand({
@@ -281,7 +281,7 @@ describe("routeCommand", () => {
   it("returns error when output is null", async () => {
     mockGenerateText.mockResolvedValueOnce({
       output: null,
-      usage: { promptTokens: 50, completionTokens: 0 },
+      usage: { inputTokens: 50, outputTokens: 0 },
     });
 
     const result = await routeCommand({

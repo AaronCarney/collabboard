@@ -62,4 +62,18 @@ describe("POST /api/share/validate", () => {
 
     expect(res.status).toBe(400);
   });
+
+  it("returns 400 with error message for invalid JSON body", async () => {
+    const req = new Request("http://localhost/api/share/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "not json at all",
+    });
+
+    const res = await POST(req);
+    const data = (await res.json()) as Record<string, unknown>;
+
+    expect(res.status).toBe(400);
+    expect(data.error).toBe("Invalid JSON");
+  });
 });

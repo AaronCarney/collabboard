@@ -8,6 +8,8 @@ import { routeCommand } from "@/lib/ai/command-router";
 import { enqueueForUser } from "@/lib/ai/ai-queue";
 import { classifyError, ERROR_MESSAGES } from "@/lib/ai/error-handler";
 
+import { checkRateLimit } from "@/lib/ai/rate-limiter";
+
 const aiCommandRequestSchema = z.object({
   boardId: z.string().uuid(),
   command: z.string().min(1).max(1000),
@@ -26,6 +28,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(
       { success: false, error: "Authentication required", code: "AUTH_ERROR" },
       { status: 401 }
+    );
+  }
+
+  // Rate limit check
+  if (!checkRateLimit(userId)) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Too many AI requests. Please wait a moment.",
+        code: "RATE_LIMITED",
+      },
+      { status: 429 }
     );
   }
 
@@ -175,11 +189,46 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           { status: 500 }
         );
       }
+
+      // Broadcast deletions to all connected clients
+      const deleteChannel = supabaseAdmin.channel(`board:${boardId}`);
+      try {
+        const SUBSCRIBE_TIMEOUT_MS = 5000;
+        const subscribePromise = new Promise<void>((resolve, reject) => {
+          deleteChannel.subscribe((status: string) => {
+            if (status === "SUBSCRIBED") {
+              resolve();
+            } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+              reject(new Error(`Channel subscription failed: ${status}`));
+            }
+          });
+        });
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => {
+            reject(new Error("Channel subscribe timed out"));
+          }, SUBSCRIBE_TIMEOUT_MS)
+        );
+        await Promise.race([subscribePromise, timeoutPromise]);
+
+        for (const deletedId of result.deletedIds) {
+          await deleteChannel.send({
+            type: "broadcast",
+            event: "object:delete",
+            payload: { id: deletedId, userId },
+          });
+        }
+      } catch (broadcastErr: unknown) {
+        const msg = broadcastErr instanceof Error ? broadcastErr.message : "Unknown";
+        console.warn("[AI] Delete broadcast failed (non-fatal):", msg); // eslint-disable-line no-console
+      } finally {
+        await supabaseAdmin.removeChannel(deleteChannel);
+      }
     }
 
     return NextResponse.json({
       success: true,
       objects: result.objects,
+      deletedIds: result.deletedIds,
       message: result.message,
       tokensUsed: result.tokensUsed,
       latencyMs: result.latencyMs,

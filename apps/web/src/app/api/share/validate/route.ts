@@ -11,7 +11,13 @@ const validateRequestSchema = z.object({
 
 /** POST /api/share/validate — Validate a share token (no auth required) */
 export async function POST(request: Request): Promise<NextResponse> {
-  const body: unknown = await request.json();
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
   const parsed = validateRequestSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid token format" }, { status: 400 });

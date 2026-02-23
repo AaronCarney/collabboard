@@ -1,7 +1,13 @@
 import { v4 as uuidv4 } from "uuid";
-import type { BoardObject } from "@collabboard/shared";
+import type {
+  BoardObject,
+  StickyNoteObject,
+  FrameObject,
+  ConnectorObject,
+} from "@collabboard/shared";
 import { z, OBJECT_DEFAULTS } from "@collabboard/shared";
 import { tool } from "ai";
+import type { Tool } from "ai";
 import { resolveColor } from "./colors";
 
 // ─── Tool Parameter Schemas ──────────────────────────────────
@@ -84,7 +90,7 @@ export function executeCreateStickyNote(
   userId: string
 ): BoardObject {
   const defaults = OBJECT_DEFAULTS.sticky_note;
-  return {
+  const obj: StickyNoteObject = {
     id: uuidv4(),
     board_id: boardId,
     type: "sticky_note",
@@ -101,7 +107,8 @@ export function executeCreateStickyNote(
     updated_at: makeTimestamp(),
     parent_frame_id: null,
     properties: {},
-  } as BoardObject;
+  };
+  return obj;
 }
 
 export function executeCreateShape(
@@ -109,10 +116,9 @@ export function executeCreateShape(
   boardId: string,
   userId: string
 ): BoardObject {
-  return {
+  const base = {
     id: uuidv4(),
     board_id: boardId,
-    type: args.type,
     x: args.x,
     y: args.y,
     width: args.width,
@@ -125,8 +131,16 @@ export function executeCreateShape(
     created_at: makeTimestamp(),
     updated_at: makeTimestamp(),
     parent_frame_id: null,
-    properties: {},
-  } as BoardObject;
+    properties: {} as Record<string, never>,
+  };
+  switch (args.type) {
+    case "rectangle":
+      return { ...base, type: "rectangle" };
+    case "circle":
+      return { ...base, type: "circle" };
+    case "text":
+      return { ...base, type: "text" };
+  }
 }
 
 export function executeCreateFrame(
@@ -134,7 +148,7 @@ export function executeCreateFrame(
   boardId: string,
   userId: string
 ): BoardObject {
-  return {
+  const obj: FrameObject = {
     id: uuidv4(),
     board_id: boardId,
     type: "frame",
@@ -151,7 +165,8 @@ export function executeCreateFrame(
     updated_at: makeTimestamp(),
     parent_frame_id: null,
     properties: {},
-  } as BoardObject;
+  };
+  return obj;
 }
 
 export function executeMoveObject(
@@ -227,7 +242,7 @@ export function executeCreateConnector(
   const strokeStyle = style === "dashed" ? "dashed" : "solid";
 
   const defaults = OBJECT_DEFAULTS.connector;
-  return {
+  const obj: ConnectorObject = {
     id: uuidv4(),
     board_id: boardId,
     type: "connector",
@@ -246,12 +261,13 @@ export function executeCreateConnector(
     properties: {
       from_object_id: args.fromId,
       to_object_id: args.toId,
-      from_port: "center" as const,
-      to_port: "center" as const,
-      arrow_style: arrowStyle as "none" | "end" | "both",
-      stroke_style: strokeStyle as "solid" | "dashed" | "dotted",
+      from_port: "center",
+      to_port: "center",
+      arrow_style: arrowStyle,
+      stroke_style: strokeStyle,
     },
-  } as BoardObject;
+  };
+  return obj;
 }
 
 export function executeDeleteObject(
@@ -265,8 +281,7 @@ export function executeDeleteObject(
 
 // ─── Vercel AI SDK Tool Definitions ──────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function getToolDefinitions() {
+export function getToolDefinitions(): Record<string, Tool> {
   return {
     createStickyNote: tool({
       description: "Create a new sticky note on the board",
