@@ -3,16 +3,25 @@ import type { Database } from "@/types/database";
 
 type SupabaseClientInstance = ReturnType<typeof createClient<Database>>;
 
-function getRequiredEnv(name: string): string {
-  const value = process.env[name];
+// Next.js only inlines NEXT_PUBLIC_* env vars when accessed as literal
+// property names (e.g. process.env.NEXT_PUBLIC_FOO). Dynamic access via
+// process.env[variable] is NOT replaced in the client bundle and returns
+// undefined, crashing client components. Use direct literal access here.
+function requireEnvLiteral(value: string | undefined, name: string): string {
   if (!value) {
     throw new Error(`Missing ${name} environment variable`);
   }
   return value;
 }
 
-const supabaseUrl = getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL");
-const supabaseAnonKey = getRequiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+const supabaseUrl = requireEnvLiteral(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  "NEXT_PUBLIC_SUPABASE_URL"
+);
+const supabaseAnonKey = requireEnvLiteral(
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY"
+);
 
 // Authenticated client for REST/RLS operations (board & object CRUD)
 export function createClerkSupabaseClient(
