@@ -23,11 +23,8 @@ test.describe("Resilience — Network throttle and disconnect recovery", () => {
     await page.click('[title="Sticky Note"]');
     await canvas.click({ position: { x: 300, y: 300 } });
 
-    // Wait longer for slow network
-    await page.waitForTimeout(5000);
-
-    // Canvas should still be responsive
-    await expect(canvas).toBeVisible();
+    // Canvas should still be responsive under slow network
+    await expect(canvas).toBeVisible({ timeout: 10000 });
 
     // Restore normal network
     await cdpSession.send("Network.emulateNetworkConditions", {
@@ -48,7 +45,7 @@ test.describe("Resilience — Network throttle and disconnect recovery", () => {
     // Create an object while online
     await page.click('[title="Rectangle"]');
     await canvas.click({ position: { x: 200, y: 200 } });
-    await page.waitForTimeout(1000);
+    await expect(canvas).toBeVisible();
 
     // Go offline
     const cdpSession = await context.newCDPSession(page);
@@ -63,7 +60,6 @@ test.describe("Resilience — Network throttle and disconnect recovery", () => {
     // Create another object while offline (should work optimistically)
     await page.click('[title="Circle"]');
     await canvas.click({ position: { x: 400, y: 400 } });
-    await page.waitForTimeout(500);
 
     // Canvas should still be functional (optimistic updates)
     await expect(canvas).toBeVisible();
@@ -76,10 +72,8 @@ test.describe("Resilience — Network throttle and disconnect recovery", () => {
       latency: 0,
     });
 
-    // Wait for reconnection and sync
-    await page.waitForTimeout(3000);
-
-    // Page should still be stable
+    // Wait for reconnection and sync — page should stabilize
+    await page.waitForLoadState("networkidle");
     await expect(canvas).toBeVisible();
   });
 });

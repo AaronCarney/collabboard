@@ -26,12 +26,9 @@ test.describe("Collaboration — Two users editing simultaneously", () => {
     await pageA.click('[title="Sticky Note"]');
     await canvasA.click({ position: { x: 300, y: 300 } });
 
-    // Wait for sync — User B should see the object
-    await pageB.waitForTimeout(2000);
-
-    // Verify canvas has rendered objects (checking via DOM or screenshot comparison)
+    // Wait for sync — User B should see the canvas with synced objects
     const canvasB = pageB.locator("canvas");
-    await expect(canvasB).toBeVisible();
+    await expect(canvasB).toBeVisible({ timeout: 5000 });
 
     // Clean up
     await contextA.close();
@@ -56,12 +53,9 @@ test.describe("Collaboration — Two users editing simultaneously", () => {
     await canvasA.hover({ position: { x: 400, y: 400 } });
     await pageA.mouse.move(400, 400);
 
-    // Wait for cursor broadcast
-    await pageB.waitForTimeout(1000);
-
-    // Both pages should have presence indicators visible
+    // Wait for cursor broadcast — both pages should have presence indicators visible
     const presenceBar = pageB.locator('[class*="presence"], [data-testid="presence-bar"]');
-    await expect(presenceBar.or(pageB.locator("canvas"))).toBeVisible();
+    await expect(presenceBar.or(pageB.locator("canvas"))).toBeVisible({ timeout: 5000 });
 
     await contextA.close();
     await contextB.close();

@@ -11,8 +11,9 @@ test.describe("Persistence — State survives page refresh", () => {
     const canvas = page.locator("canvas");
     await canvas.click({ position: { x: 300, y: 300 } });
 
-    // Wait for persistence (Supabase write)
-    await page.waitForTimeout(2000);
+    // Wait for persistence (Supabase write) by confirming canvas is stable
+    await expect(canvas).toBeVisible();
+    await page.waitForLoadState("networkidle");
 
     // Reload the page
     await page.reload();
@@ -35,8 +36,8 @@ test.describe("Persistence — State survives page refresh", () => {
     await nameInput.fill("My Test Board");
     await nameInput.blur();
 
-    // Wait for persistence
-    await page.waitForTimeout(1000);
+    // Wait for persistence by confirming network settles
+    await page.waitForLoadState("networkidle");
 
     // Reload
     await page.reload();

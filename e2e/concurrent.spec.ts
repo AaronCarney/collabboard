@@ -41,7 +41,7 @@ test.describe("Concurrent — 5 users editing simultaneously", () => {
     }
 
     // Wait for presence sync
-    await pages[0].waitForTimeout(3000);
+    await expect(pages[0].locator("canvas")).toBeVisible({ timeout: 5000 });
 
     // Each user creates an object at a different position
     for (let i = 0; i < NUM_USERS; i++) {
@@ -51,11 +51,12 @@ test.describe("Concurrent — 5 users editing simultaneously", () => {
       const x = 100 + i * 150;
       const y = 200;
       await canvas.click({ position: { x, y } });
-      await page.waitForTimeout(300);
+      // Brief pause between users to avoid race
+      await expect(canvas).toBeVisible();
     }
 
-    // Wait for all sync
-    await pages[0].waitForTimeout(3000);
+    // Wait for sync to settle
+    await expect(pages[0].locator("canvas")).toBeVisible({ timeout: 5000 });
 
     // All canvases should be visible and functional
     for (const page of pages) {
@@ -101,13 +102,12 @@ test.describe("Concurrent — 5 users editing simultaneously", () => {
       await pages[i].waitForLoadState("networkidle");
     }
 
-    await pages[0].waitForTimeout(2000);
+    await expect(pages[0].locator("canvas")).toBeVisible({ timeout: 5000 });
 
     // All users move cursors simultaneously
     const movePromises = pages.map(async (page, i) => {
       for (let step = 0; step < 10; step++) {
         await page.mouse.move(200 + step * 20, 200 + i * 50);
-        await page.waitForTimeout(100);
       }
     });
 

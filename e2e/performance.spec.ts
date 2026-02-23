@@ -17,8 +17,6 @@ test.describe("Performance — Rapid operations", () => {
       const x = 100 + (i % 5) * 150;
       const y = 100 + Math.floor(i / 5) * 150;
       await canvas.click({ position: { x, y } });
-      // Minimal delay between operations
-      await page.waitForTimeout(100);
     }
 
     const elapsed = Date.now() - startTime;
@@ -27,7 +25,7 @@ test.describe("Performance — Rapid operations", () => {
     expect(elapsed).toBeLessThan(30000); // 30s max for 20 objects
 
     // Wait for all operations to settle
-    await page.waitForTimeout(2000);
+    await page.waitForLoadState("networkidle");
 
     // Page should still be responsive (canvas visible, no crash)
     await expect(canvas).toBeVisible();
@@ -42,7 +40,7 @@ test.describe("Performance — Rapid operations", () => {
     // Create a single object
     await page.click('[title="Rectangle"]');
     await canvas.click({ position: { x: 300, y: 300 } });
-    await page.waitForTimeout(500);
+    await expect(canvas).toBeVisible();
 
     // Rapidly drag the object across the canvas
     await page.mouse.move(300, 300);
@@ -53,7 +51,6 @@ test.describe("Performance — Rapid operations", () => {
     await page.mouse.up();
 
     // Canvas should still be responsive
-    await page.waitForTimeout(500);
     await expect(canvas).toBeVisible();
   });
 });

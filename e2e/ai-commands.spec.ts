@@ -26,11 +26,8 @@ test.describe("AI Commands — Issue command and verify results", () => {
       await commandInput.fill("Create a SWOT analysis");
       await commandInput.press("Enter");
 
-      // Should show some loading indicator or the command should be processing
-      await page.waitForTimeout(1000);
-
       // Canvas should still be visible (no crash from AI command)
-      await expect(page.locator("canvas")).toBeVisible();
+      await expect(page.locator("canvas")).toBeVisible({ timeout: 5000 });
     }
   });
 
@@ -56,12 +53,9 @@ test.describe("AI Commands — Issue command and verify results", () => {
       await commandInput.fill("Add 3 sticky notes");
       await commandInput.press("Enter");
 
-      // Wait for AI processing and sync
-      await pageA.waitForTimeout(5000);
-
-      // Both canvases should be visible
-      await expect(pageA.locator("canvas")).toBeVisible();
-      await expect(pageB.locator("canvas")).toBeVisible();
+      // Wait for AI processing and sync — both canvases should remain visible
+      await expect(pageA.locator("canvas")).toBeVisible({ timeout: 10000 });
+      await expect(pageB.locator("canvas")).toBeVisible({ timeout: 10000 });
     }
 
     await contextA.close();
