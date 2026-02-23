@@ -13,7 +13,6 @@ apps/web/          Next.js app (App Router)
 apps/realtime/     (Not in use — sync via Supabase Realtime; see D003, D016)
 packages/db/       Supabase client factory + generated types
 packages/shared/   Zod schemas, shared types
-packages/ui/       Shared React components
 docs/              Architecture, specs, plans
 .claude/agents/    Subagent prompts
 .claude/commands/  Slash command templates

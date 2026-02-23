@@ -79,7 +79,6 @@ Co-authored-by: Claude <noreply@anthropic.com>"
 | `realtime` | Cloudflare Worker / DO changes |
 | `db`       | Prisma schema, migrations      |
 | `shared`   | Zod schemas, shared types      |
-| `ui`       | packages/ui component changes  |
 | `api`      | tRPC router changes            |
 | `test`     | Test-only changes              |
 | `ci`       | GitHub Actions, tooling        |

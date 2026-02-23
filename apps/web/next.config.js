@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['@collabboard/shared', '@collabboard/ui'],
+  transpilePackages: ['@collabboard/shared'],
   webpack: (config, { isServer }) => {
     if (isServer) {
       // langfuse and langsmith are optional observability deps —
