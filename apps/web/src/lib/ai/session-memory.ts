@@ -71,8 +71,13 @@ export function resolveAnaphora(command: string, session: SessionEntry | null): 
     return session.lastCreatedIds;
   }
 
-  if (pluralPattern.test(command) && session.lastCreatedIds.length > 0) {
-    return session.lastCreatedIds;
+  if (pluralPattern.test(command)) {
+    if (session.lastCreatedIds.length > 1) {
+      return session.lastCreatedIds;
+    }
+    if (session.lastModifiedIds.length > 1) {
+      return session.lastModifiedIds;
+    }
   }
 
   return null;

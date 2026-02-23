@@ -241,6 +241,50 @@ describe("resolveAnaphora", () => {
     expect(result).toBeNull();
   });
 
+  it('returns null for plural "them" when lastCreatedIds has only 1 entry', () => {
+    const session: SessionEntry = {
+      lastCreatedIds: ["single-id"],
+      lastModifiedIds: [],
+      lastCommandText: "create a note",
+      timestamp: Date.now(),
+    };
+    const result = resolveAnaphora("delete them", session);
+    expect(result).toBeNull();
+  });
+
+  it('falls back to lastModifiedIds for plural "them" when lastCreatedIds is empty', () => {
+    const session: SessionEntry = {
+      lastCreatedIds: [],
+      lastModifiedIds: ["a", "b"],
+      lastCommandText: "modify notes",
+      timestamp: Date.now(),
+    };
+    const result = resolveAnaphora("delete them", session);
+    expect(result).toEqual(["a", "b"]);
+  });
+
+  it('returns null for plural "those" when both created and modified have only 1 entry', () => {
+    const session: SessionEntry = {
+      lastCreatedIds: [],
+      lastModifiedIds: ["single"],
+      lastCommandText: "modify a note",
+      timestamp: Date.now(),
+    };
+    const result = resolveAnaphora("move those", session);
+    expect(result).toBeNull();
+  });
+
+  it('resolves plural "these" from lastCreatedIds when length > 1', () => {
+    const session: SessionEntry = {
+      lastCreatedIds: ["x", "y", "z"],
+      lastModifiedIds: [],
+      lastCommandText: "create three notes",
+      timestamp: Date.now(),
+    };
+    const result = resolveAnaphora("color these", session);
+    expect(result).toEqual(["x", "y", "z"]);
+  });
+
   it('resolves anaphora case-insensitively for uppercase pronoun "IT"', () => {
     const session: SessionEntry = {
       lastCreatedIds: ["abc-456"],
