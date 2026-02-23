@@ -121,8 +121,9 @@ describe("BoardCanvas", () => {
     }));
   });
 
-  it("calls onCanvasClick when creation tool is active and empty space is clicked", () => {
-    const props = defaultProps({ activeTool: "sticky_note" });
+  it("calls onDrawCreate (not onCanvasClick) when creation tool is active and empty space is clicked", () => {
+    const onDrawCreate = vi.fn();
+    const props = defaultProps({ activeTool: "sticky_note", onDrawCreate });
     const { container } = render(<BoardCanvas {...props} />);
     const canvas = getCanvas(container);
 
@@ -133,7 +134,8 @@ describe("BoardCanvas", () => {
       fireMouseEvent(canvas, "mouseup", { clientX: 200, clientY: 150 });
     });
 
-    expect(props.onCanvasClick).toHaveBeenCalledWith(200, 150);
+    expect(onDrawCreate).toHaveBeenCalled();
+    expect(props.onCanvasClick).not.toHaveBeenCalled();
   });
 
   it("does not pan when creation tool is active and empty space is clicked", () => {
@@ -535,7 +537,7 @@ describe("BoardCanvas", () => {
             (call: unknown[]) =>
               typeof call[0] === "string" &&
               call[0].length <= 33 && // 30 chars + "..."
-              (call[0]).endsWith("…")
+              call[0].endsWith("…")
           );
           expect(hasTruncated).toBe(true);
         });

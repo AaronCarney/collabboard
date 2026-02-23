@@ -1,5 +1,6 @@
 "use client";
 
+import type React from "react";
 import { useState, useCallback, useRef, useMemo } from "react";
 import type { BoardObject, ObjectType, CursorPosition, PresenceUser } from "@/types/board";
 import type { ToolType } from "@collabboard/shared";
@@ -10,6 +11,43 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { hashCode, shouldAcceptUpdate } from "@/lib/board-logic";
 import { createCommandHistory } from "@/lib/board-commands";
 import type { CommandHistory, MutationPipeline } from "@/lib/board-commands";
+
+export interface UseBoardStoreReturn {
+  objects: BoardObject[];
+  camera: Camera;
+  setCamera: React.Dispatch<React.SetStateAction<Camera>>;
+  selectedIds: string[];
+  setSelectedIds: React.Dispatch<React.SetStateAction<string[]>>;
+  activeTool: ToolType;
+  setActiveTool: React.Dispatch<React.SetStateAction<ToolType>>;
+  cursors: Map<string, CursorPosition>;
+  presenceUsers: PresenceUser[];
+  editingId: string | null;
+  setEditingId: React.Dispatch<React.SetStateAction<string | null>>;
+  loadObjects: () => Promise<void>;
+  subscribe: () => () => void;
+  broadcastCursor: (x: number, y: number) => void;
+  createObject: (
+    type: ObjectType,
+    x: number,
+    y: number,
+    width?: number,
+    height?: number
+  ) => Promise<BoardObject>;
+  updateObject: (id: string, changes: Partial<BoardObject>) => void;
+  moveObjects: (moves: { id: string; x: number; y: number }[], persist?: boolean) => void;
+  deleteObject: (id: string) => Promise<void>;
+  userColor: string;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  history: CommandHistory;
+  mutate: (updatedObjects: BoardObject[]) => void;
+  mutateRemove: (ids: string[]) => void;
+  getPipeline: () => MutationPipeline;
+  mergeObjects: (objs: BoardObject[]) => void;
+}
 
 const DEBUG_REALTIME = process.env.NEXT_PUBLIC_DEBUG_REALTIME === "true";
 
@@ -52,6 +90,93 @@ interface DeletePayload {
 }
 
 /**
+ * Type-safe spread for BoardObject: merges base-field updates into any variant
+ * without losing the discriminated union narrowing. Only accepts updates to
+ * base fields (not `type` or `properties`) to preserve the discriminant.
+ */
+function updateBoardObject<T extends BoardObject>(
+  obj: T,
+  updates: Partial<Omit<BoardObject, "type" | "properties">>
+): T {
+  return { ...obj, ...updates };
+}
+
+/**
+ * Merges partial changes (which may include any BoardObject field) into an
+ * existing BoardObject. Preserves the variant type since the discriminant
+ * (`type`) is carried through from the original object unless explicitly
+ * overridden — but callers never override `type` in practice.
+ */
+function mergeBoardObjectChanges<T extends BoardObject>(
+  obj: T,
+  changes: Partial<BoardObject>,
+  extra: { version: number; updated_at: string }
+): T {
+  return { ...obj, ...changes, ...extra } as T;
+}
+
+/** Base fields shared by all simple (non-connector, non-line) BoardObject variants. */
+interface SimpleObjectFields {
+  id: string;
+  board_id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  content: string;
+  color: string;
+  version: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  parent_frame_id: string | null;
+  properties: Record<string, never>;
+}
+
+/**
+ * Type-safe factory for BoardObject variants with empty properties.
+ * Uses a switch to produce the correct discriminated union member.
+ */
+function createSimpleBoardObject(type: ObjectType, fields: SimpleObjectFields): BoardObject {
+  switch (type) {
+    case "sticky_note":
+      return { ...fields, type: "sticky_note" };
+    case "rectangle":
+      return { ...fields, type: "rectangle" };
+    case "circle":
+      return { ...fields, type: "circle" };
+    case "text":
+      return { ...fields, type: "text" };
+    case "frame":
+      return { ...fields, type: "frame" };
+    case "triangle":
+      return { ...fields, type: "triangle" };
+    case "star":
+      return { ...fields, type: "star" };
+    case "line":
+      return {
+        ...fields,
+        type: "line",
+        properties: { x2: 0, y2: 0, arrow_style: "none", stroke_style: "solid", stroke_width: 2 },
+      };
+    case "connector":
+      return {
+        ...fields,
+        type: "connector",
+        properties: {
+          from_object_id: "",
+          to_object_id: "",
+          from_port: "center",
+          to_port: "center",
+          arrow_style: "end",
+          stroke_style: "solid",
+        },
+      };
+  }
+}
+
+/**
  * Validate an array of raw objects against the boardObjectSchema.
  * Returns only the objects that pass validation; logs warnings for invalid ones.
  */
@@ -83,14 +208,13 @@ function validateBroadcastPayload(payload: unknown): BoardObject | null {
   return null;
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function useBoardStore(
   boardId: string,
   userId: string,
   userName: string,
   supabase: SupabaseClient,
   realtimeSupabase: SupabaseClient
-) {
+): UseBoardStoreReturn {
   const [objectsMap, setObjectsMapRaw] = useState<Map<string, BoardObject>>(new Map());
   const objectsMapRef = useRef<Map<string, BoardObject>>(new Map());
   const setObjectsMap = useCallback(
@@ -239,15 +363,20 @@ export function useBoardStore(
   // ─── Load + Subscribe ──────────────────────────────────────
 
   const loadObjects = useCallback(async () => {
-    const { data } = await supabase.from("board_objects").select("*").eq("board_id", boardId);
-    if (data) {
-      const validated = validateBoardObjects(data);
-      const map = new Map<string, BoardObject>();
-      for (const obj of validated) {
-        map.set(obj.id, obj);
-      }
-      setObjectsMap(map);
+    const { data, error } = await supabase
+      .from("board_objects")
+      .select("*")
+      .eq("board_id", boardId);
+    if (error) {
+      console.warn("[Supabase] loadObjects error:", error.message); // eslint-disable-line no-console
+      return;
     }
+    const validated = validateBoardObjects(data);
+    const map = new Map<string, BoardObject>();
+    for (const obj of validated) {
+      map.set(obj.id, obj);
+    }
+    setObjectsMap(map);
   }, [boardId, supabase]);
 
   const subscribe = useCallback(() => {
@@ -375,14 +504,13 @@ export function useBoardStore(
   const createObject = useCallback(
     async (type: ObjectType, x: number, y: number, width?: number, height?: number) => {
       const defaults = OBJECT_DEFAULTS[type];
-      const obj = {
+      const obj = createSimpleBoardObject(type, {
         id: uuidv4(),
         board_id: boardId,
-        type,
         x,
         y,
-        width: width ?? defaults.width,
-        height: height ?? defaults.height,
+        width: width ?? defaults.width ?? 200,
+        height: height ?? defaults.height ?? 200,
         rotation: 0,
         content: defaults.content ?? "",
         color: defaults.color ?? "#FFEB3B",
@@ -392,7 +520,7 @@ export function useBoardStore(
         updated_at: new Date().toISOString(),
         parent_frame_id: null,
         properties: {},
-      } as BoardObject;
+      });
 
       setObjectsMap((prev) => {
         const next = new Map(prev);
@@ -425,12 +553,10 @@ export function useBoardStore(
         const o = prev.get(id);
         if (!o) return prev;
 
-        const updated = {
-          ...o,
-          ...changes,
+        const updated = mergeBoardObjectChanges(o, changes, {
           version: o.version + 1,
           updated_at: new Date().toISOString(),
-        } as BoardObject;
+        });
 
         if (subscribedRef.current) {
           channelRef.current
@@ -451,7 +577,12 @@ export function useBoardStore(
             version: updated.version,
             updated_at: updated.updated_at,
           })
-          .eq("id", id);
+          .eq("id", id)
+          .then(({ error }) => {
+            if (error) {
+              console.warn("[Supabase] update error:", error.message); // eslint-disable-line no-console
+            }
+          });
 
         const next = new Map(prev);
         next.set(id, updated);
@@ -494,13 +625,12 @@ export function useBoardStore(
           const o = next.get(move.id);
           if (!o) continue;
           changed = true;
-          const updated = {
-            ...o,
+          const updated = updateBoardObject(o, {
             x: move.x,
             y: move.y,
             version: o.version + 1,
             updated_at: new Date().toISOString(),
-          } as BoardObject;
+          });
 
           next.set(move.id, updated);
 
@@ -513,7 +643,12 @@ export function useBoardStore(
                 version: updated.version,
                 updated_at: updated.updated_at,
               })
-              .eq("id", o.id);
+              .eq("id", o.id)
+              .then(({ error }) => {
+                if (error) {
+                  console.warn("[Supabase] move persist error:", error.message); // eslint-disable-line no-console
+                }
+              });
           }
         }
         return changed ? next : prev;
@@ -575,12 +710,11 @@ export function useBoardStore(
         if (objToDelete.type === "frame") {
           for (const [childId, child] of next) {
             if (child.parent_frame_id === id && childId !== id) {
-              const updated = {
-                ...child,
+              const updated = updateBoardObject(child, {
                 parent_frame_id: null,
                 version: child.version + 1,
                 updated_at: new Date().toISOString(),
-              } as BoardObject;
+              });
               next.set(childId, updated);
 
               // Persist child update

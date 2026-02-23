@@ -390,6 +390,39 @@ describe("useBoardStore — updateObject", () => {
     expect(result.current.objects[1].x).toBe(100);
     expect(result.current.objects[1].id).toBe("rect-id");
   });
+
+  it("logs a warning when Supabase update returns an error", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const mockEqWithError = vi.fn().mockResolvedValue({
+      data: null,
+      error: { message: "RLS violation" },
+    });
+    mockUpdate.mockReturnValue({ eq: mockEqWithError });
+
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    await act(async () => {
+      await result.current.createObject("sticky_note", 0, 0);
+    });
+
+    const id = result.current.objects[0].id;
+    act(() => {
+      result.current.updateObject(id, { x: 50 });
+    });
+
+    // Allow the fire-and-forget .then() to resolve
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    expect(warnSpy).toHaveBeenCalledWith("[Supabase] update error:", "RLS violation");
+
+    warnSpy.mockRestore();
+    // Restore default mock
+    mockUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) });
+  });
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -512,6 +545,23 @@ describe("useBoardStore — loadObjects", () => {
 
     // Objects remain empty — no crash
     expect(result.current.objects).toEqual([]);
+  });
+
+  it("logs a warning when Supabase returns an error", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    mockEq.mockResolvedValueOnce({ data: null, error: { message: "network timeout" } });
+
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    await act(async () => {
+      await result.current.loadObjects();
+    });
+
+    expect(warnSpy).toHaveBeenCalledWith("[Supabase] loadObjects error:", "network timeout");
+    expect(result.current.objects).toEqual([]);
+    warnSpy.mockRestore();
   });
 });
 
@@ -863,6 +913,40 @@ describe("useBoardStore — moveObjects", () => {
     expect(mockRealtimeChannelSend).toHaveBeenCalledTimes(1);
 
     vi.useRealTimers();
+  });
+
+  it("logs a warning when persist Supabase update returns an error", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { v4 } = await import("uuid");
+    (v4 as ReturnType<typeof vi.fn>).mockReturnValueOnce("obj-a");
+
+    const mockEqWithError = vi.fn().mockResolvedValue({
+      data: null,
+      error: { message: "persist failed" },
+    });
+    mockUpdate.mockReturnValue({ eq: mockEqWithError });
+
+    const { result } = renderHook(() =>
+      useBoardStore("board-1", "user-1", "Alice", mockSupabase, mockRealtimeSupabase)
+    );
+
+    await act(async () => {
+      await result.current.createObject("rectangle", 0, 0);
+    });
+
+    act(() => {
+      result.current.moveObjects([{ id: "obj-a", x: 50, y: 50 }], true);
+    });
+
+    // Allow the fire-and-forget .then() to resolve
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    expect(warnSpy).toHaveBeenCalledWith("[Supabase] move persist error:", "persist failed");
+
+    warnSpy.mockRestore();
+    mockUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) });
   });
 });
 
