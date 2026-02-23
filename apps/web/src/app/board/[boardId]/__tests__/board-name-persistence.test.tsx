@@ -15,9 +15,9 @@ vi.mock("next/navigation", () => ({
     refresh: vi.fn(),
     prefetch: vi.fn(),
   })),
-  usePathname: vi.fn(() => "/board/test-board-id"),
+  usePathname: vi.fn(() => "/board/00000000-0000-4000-8000-000000000001"),
   useSearchParams: vi.fn(() => new URLSearchParams()),
-  useParams: vi.fn(() => ({ boardId: "test-board-id" })),
+  useParams: vi.fn(() => ({ boardId: "00000000-0000-4000-8000-000000000001" })),
   redirect: vi.fn(),
   notFound: vi.fn(),
 }));
@@ -215,7 +215,7 @@ function setupMocks(): void {
 
   mockSelectSingle.mockResolvedValue({
     data: {
-      id: "test-board-id",
+      id: "00000000-0000-4000-8000-000000000001",
       name: "My Persisted Board",
       created_by: "test-user-id",
       created_at: "2024-01-01T00:00:00Z",
@@ -249,7 +249,7 @@ describe("Board name persistence — AC1: saves to database on blur", () => {
     await waitFor(() => {
       expect(mockSupabase.from).toHaveBeenCalledWith("boards");
       expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ name: "New Board Name" }));
-      expect(mockUpdateEq).toHaveBeenCalledWith("id", "test-board-id");
+      expect(mockUpdateEq).toHaveBeenCalledWith("id", "00000000-0000-4000-8000-000000000001");
     });
   });
 
@@ -439,7 +439,7 @@ describe("Board name persistence — AC2: loads from database on mount", () => {
   it("fetches the board record from Supabase on mount and sets the name", async () => {
     mockSelectSingle.mockResolvedValue({
       data: {
-        id: "test-board-id",
+        id: "00000000-0000-4000-8000-000000000001",
         name: "My Saved Board",
         created_by: "test-user-id",
         created_at: "2024-01-01T00:00:00Z",
@@ -456,13 +456,13 @@ describe("Board name persistence — AC2: loads from database on mount", () => {
 
     expect(mockSupabase.from).toHaveBeenCalledWith("boards");
     expect(mockSelectAll).toHaveBeenCalledWith("name");
-    expect(mockSelectEq).toHaveBeenCalledWith("id", "test-board-id");
+    expect(mockSelectEq).toHaveBeenCalledWith("id", "00000000-0000-4000-8000-000000000001");
   });
 
   it("sets document title to the loaded board name", async () => {
     mockSelectSingle.mockResolvedValue({
       data: {
-        id: "test-board-id",
+        id: "00000000-0000-4000-8000-000000000001",
         name: "My Project Board",
         created_by: "test-user-id",
         created_at: "2024-01-01T00:00:00Z",
