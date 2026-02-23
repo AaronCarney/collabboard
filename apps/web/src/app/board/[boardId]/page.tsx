@@ -1,11 +1,12 @@
 "use client";
 
+import type React from "react";
 import { useEffect, useCallback, useRef, useMemo, useState } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import type { BoardObject } from "@/types/board";
 import type { ToolType, PortName, ObjectType } from "@collabboard/shared";
-import { boardObjectSchema, OBJECT_DEFAULTS } from "@collabboard/shared";
+import { boardObjectSchema, OBJECT_DEFAULTS, z } from "@collabboard/shared";
 import { showToast } from "@/lib/toast";
 import { computeFitToScreen } from "@/lib/view-controls";
 import {
@@ -42,13 +43,18 @@ import {
   createDuplicateCommand,
 } from "@/lib/transforms";
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export default function BoardPage() {
+export default function BoardPage(): React.JSX.Element | null {
   const { user } = useUser();
   const { getToken } = useAuth();
   const params = useParams();
   const router = useRouter();
-  const boardId = params.boardId as string;
+  const rawBoardId = params.boardId;
+  const boardIdResult = z.string().uuid().safeParse(rawBoardId);
+  if (!boardIdResult.success) {
+    router.push("/dashboard");
+    return null;
+  }
+  const boardId = boardIdResult.data;
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
 
@@ -145,12 +151,17 @@ export default function BoardPage() {
     [supabase, boardId, readOnly]
   );
 
+  const loadObjectsRef = useRef(store.loadObjects);
+  const subscribeRef = useRef(store.subscribe);
+  loadObjectsRef.current = store.loadObjects;
+  subscribeRef.current = store.subscribe;
+
   useEffect(() => {
     if (!user) return;
-    void store.loadObjects();
-    const cleanup = store.subscribe();
+    void loadObjectsRef.current();
+    const cleanup = subscribeRef.current();
     return cleanup;
-  }, [user, store.loadObjects, store.subscribe]);
+  }, [user, boardId]);
 
   // Dynamic document title
   useEffect(() => {
@@ -485,7 +496,7 @@ export default function BoardPage() {
       onPaste: handlePaste,
       onDuplicate: handleDuplicate,
       onToggleAiBar: () => {
-        setAiBarVisible((prev) => !prev);
+        setAiBarVisible(true);
       },
     });
 
@@ -588,7 +599,9 @@ export default function BoardPage() {
               }
             }
             if (validatedObjects.length > 0) {
-              store.mergeObjects(validatedObjects);
+              const pipeline = store.getPipeline();
+              const cmd = createPasteCommand(validatedObjects, pipeline);
+              store.history.execute(cmd);
             }
           }
 
@@ -605,7 +618,7 @@ export default function BoardPage() {
           setAiLoading(false);
         });
     },
-    [boardId, store.selectedIds, store.camera, store.mergeObjects, readOnly]
+    [boardId, store.selectedIds, store.camera, store.getPipeline, store.history, readOnly]
   );
 
   // Build BoardContext value

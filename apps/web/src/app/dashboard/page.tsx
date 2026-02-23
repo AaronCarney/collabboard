@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClerkSupabaseClient } from "@/lib/supabase";
 import { showToast } from "@/lib/toast";
 import type { Board } from "@/types/board";
-import { FREE_TIER_BOARD_LIMIT } from "@collabboard/shared";
+import { FREE_TIER_BOARD_LIMIT, boardSchema } from "@collabboard/shared";
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export default function DashboardPage() {
@@ -28,7 +28,8 @@ export default function DashboardPage() {
       .select("*")
       .eq("created_by", user.id)
       .order("updated_at", { ascending: false });
-    setBoards(data ? (data as Board[]) : []);
+    const parseResult = boardSchema.array().safeParse(data ?? []);
+    setBoards(parseResult.success ? parseResult.data : []);
     setLoading(false);
   }, [user, supabase]);
 
@@ -50,8 +51,9 @@ export default function DashboardPage() {
       .insert({ name: "Untitled Board", created_by: user.id })
       .select()
       .single();
-    if (result.data && !result.error) {
-      router.push(`/board/${(result.data as Board).id}`);
+    const parsed = boardSchema.safeParse(result.data);
+    if (parsed.success) {
+      router.push(`/board/${parsed.data.id}`);
     } else if (result.error) {
       showToast("Failed to create board", "error");
     }
